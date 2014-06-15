@@ -68,6 +68,7 @@ func init() {
 					<div class="navbar-collapse collapse">
 						<ul class="nav navbar-nav">
 							<li><a href="/">Home</a></li>
+							<li><a href="/stats">Statistics</a></li>
 							<li><a href="/about">About</a></li>
 						</ul>
 					</div>
@@ -169,5 +170,75 @@ func init() {
 			return confirm("Do you really want to delete this check?");
 		};
 	</script>
+	`)
+
+	ParseTemplate("stats", `
+	<h3>Statistics</h3>
+
+	<h4>"urls" Bucket</h4>
+	<table class="table table-striped table-condensed">
+		<thead>
+			<tr>
+				<th>Statistic</th>
+				<th>Value</th>
+			</tr>
+		</thead>
+		<tbody>
+		{{#url-stats}}
+			<tr>
+				<td title="BranchPageN">Number of logical branch pages</td>
+				<td>{{BranchPageN}}</td>
+			</tr>
+			<tr>
+				<td title="BranchOverflowN">Number of physical branch overflow pages</td>
+				<td>{{BranchOverflowN}}</td>
+			</tr>
+			<tr>
+				<td title="LeafPageN">Number of logical leaf pages</td>
+				<td>{{LeafPageN}}</td>
+			</tr>
+			<tr>
+				<td title="LeafOverflowN">Number of physical leaf overflow pages</td>
+				<td>{{LeafOverflowN}}</td>
+			</tr>
+			<tr>
+				<td title="KeyN">Number of key/value pairs</td>
+				<td>{{KeyN}}</td>
+			</tr>
+			<tr>
+				<td title="Depth">Number of levels in B+ tree</td>
+				<td>{{Depth}}</td>
+			</tr>
+			<tr>
+				<td title="BranchAlloc">Bytes allocated for physical branch pages</td>
+				<td>{{BranchAlloc}}</td>
+			</tr>
+			<tr>
+				<td title="BranchInuse">Bytes actually used for branch data</td>
+				<td>{{BranchInuse}}</td>
+			</tr>
+			<tr>
+				<td title="LeafAlloc">Bytes allocated for physical leaf pages</td>
+				<td>{{LeafAlloc}}</td>
+			</tr>
+			<tr>
+				<td title="LeafInuse">Bytes actually used for leaf data</td>
+				<td>{{LeafInuse}}</td>
+			</tr>
+			<tr>
+				<td title="BucketN">Total number of buckets, including top bucket</td>
+				<td>{{BucketN}}</td>
+			</tr>
+			<tr>
+				<td title="InlineBucketN">Total number of inlined buckets</td>
+				<td>{{InlineBucketN}}</td>
+			</tr>
+			<tr>
+				<td title="InlineBucketInuse">Bytes used for inlined buckets</td>
+				<td>{{InlineBucketInuse}}</td>
+			</tr>
+		{{/url-stats}}
+		</tbody>
+	</table>
 	`)
 }

@@ -331,6 +331,18 @@ func SeenCheckRoute(c web.C, w http.ResponseWriter, r *http.Request) {
 	http.Redirect(w, r, "/", http.StatusSeeOther)
 }
 
+func StatsRoute(c web.C, w http.ResponseWriter, r *http.Request) {
+	context := map[string]interface{}{}
+	db := c.Env["db"].(*bolt.DB)
+
+	db.View(func(tx *bolt.Tx) error {
+		context["url-stats"] = tx.Bucket(UrlsBucket).Stats()
+		return nil
+	})
+
+	RenderTemplateTo(w, "stats", context)
+}
+
 func DbInjectMiddleware(db *bolt.DB) func(c *web.C, h http.Handler) http.Handler {
 	middleware := func(c *web.C, h http.Handler) http.Handler {
 		fn := func(w http.ResponseWriter, r *http.Request) {
@@ -438,6 +450,7 @@ func main() {
 	goji.Post("/update/:id", UpdateCheckRoute)
 	goji.Post("/delete/:id", DeleteCheckRoute)
 	goji.Post("/seen/:id", SeenCheckRoute)
+	goji.Get("/stats", StatsRoute)
 	goji.Get("/static/*", http.StripPrefix("/static/",
 		http.FileServer(http.Dir("./static"))))
 	goji.Serve()
