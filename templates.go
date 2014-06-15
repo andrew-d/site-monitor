@@ -109,7 +109,7 @@ func init() {
 					<span class="label label-primary">Changed</span>
 				{{/SeenChange}}
 				</td>
-				<td>{{URL}}</td>
+				<td><a href="{{URL}}" target="_blank">{{URL}}</a></td>
 				<td>{{Selector}}</td>
 				<td>{{Schedule}}</td>
 				<td>{{LastCheckedPretty}}</td>
