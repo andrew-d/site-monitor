@@ -112,7 +112,7 @@ func (c *Check) PrepareForDisplay() {
 	if len(c.LastHash) > 0 {
 		c.ShortHash = c.LastHash[0:8]
 	} else {
-		c.ShortHash = "<none>"
+		c.ShortHash = "none"
 	}
 }
 

@@ -100,7 +100,7 @@ func init() {
 				<th>URL</th>
 				<th>Selector</th>
 				<th>Schedule</th>
-				<th>Last Checked</th>
+				<th>Last Successful Check</th>
 				<th>Hash</th>
 				<th>Actions</th>
 			</tr>
