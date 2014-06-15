@@ -41,7 +41,7 @@ func init() {
 			<meta charset="utf-8">
 			<meta http-equiv="X-UA-Compatible" content="IE=edge">
 			<meta name="viewport" content="width=device-width, initial-scale=1">
-			<title>Checker</title>
+			<title>Site Monitor</title>
 
 			<link href="/static/css/bootstrap.min.css" rel="stylesheet">
 
@@ -63,7 +63,7 @@ func init() {
 							<span class="icon-bar"></span>
 							<span class="icon-bar"></span>
 						</button>
-						<a class="navbar-brand" href="/">Checker</a>
+						<a class="navbar-brand" href="/">Site Monitor</a>
 					</div>
 					<div class="navbar-collapse collapse">
 						<ul class="nav navbar-nav">

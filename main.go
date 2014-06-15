@@ -400,7 +400,7 @@ func TryUpdate(db *bolt.DB, id uint64) {
 }
 
 func main() {
-	db, err := bolt.Open("./checker.db", 0666)
+	db, err := bolt.Open("./monitor.db", 0666)
 	if err != nil {
 		log.Fatalf("error opening db: %s", err)
 	}
