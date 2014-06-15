@@ -211,6 +211,7 @@ func NewCheckRoute(c web.C, w http.ResponseWriter, r *http.Request) {
 		if err != nil {
 			return err
 		}
+		check.ID = uint64(seq)
 
 		if err = b.Put(KeyFor(seq), data); err != nil {
 			return err
@@ -220,7 +221,17 @@ func NewCheckRoute(c web.C, w http.ResponseWriter, r *http.Request) {
 	if err != nil {
 		log.Printf("error inserting item: %s", err)
 		http.Error(w, err.Error(), http.StatusInternalServerError)
+		return
 	}
+
+	// If we succeeded, we update right now...
+	check.Update(db)
+
+	// ... and add a new Cron callback
+	cr := c.Env["cron"].(*cron.Cron)
+	cr.AddFunc(check.Schedule, func() {
+		TryUpdate(db, check.ID)
+	})
 
 	http.Redirect(w, r, "/", http.StatusSeeOther)
 }
@@ -331,6 +342,51 @@ func DbInjectMiddleware(db *bolt.DB) func(c *web.C, h http.Handler) http.Handler
 	return middleware
 }
 
+func CronInjectMiddleware(cr *cron.Cron) func(c *web.C, h http.Handler) http.Handler {
+	middleware := func(c *web.C, h http.Handler) http.Handler {
+		fn := func(w http.ResponseWriter, r *http.Request) {
+			c.Env["cron"] = cr
+			h.ServeHTTP(w, r)
+		}
+		return http.HandlerFunc(fn)
+	}
+	return middleware
+}
+
+func TryUpdate(db *bolt.DB, id uint64) {
+	// The task may have been deleted from the DB, so we try to fetch it first
+	check := &Check{}
+	found := false
+
+	err := db.View(func(tx *bolt.Tx) error {
+		data := tx.Bucket(UrlsBucket).Get(KeyFor(id))
+		if data == nil {
+			return nil
+		}
+
+		if err := json.Unmarshal(data, check); err != nil {
+			log.Printf("error unmarshaling json: %s", err)
+			return err
+		}
+
+		found = true
+		return nil
+	})
+
+	if err != nil {
+		// TODO: log something
+		return
+	}
+
+	if !found {
+		log.Printf("skipping update for deleted check: %d", id)
+		return
+	}
+
+	// Got a check.  Trigger an update.
+	check.Update(db)
+}
+
 func main() {
 	db, err := bolt.Open("./checker.db", 0666)
 	if err != nil {
@@ -360,11 +416,14 @@ func main() {
 
 	for _, v := range items {
 		// Trigger the update now...
-		v.Update(db)
+		go v.Update(db)
 
-		// ... and add a cron task for later.
+		// ... and add a cron task for later.  Note that we pull out the ID into a
+		// new variable so that we don't keep the entire Check structure from being
+		// garbage collected.
+		id := v.ID
 		c.AddFunc(v.Schedule, func() {
-			v.Update(db)
+			TryUpdate(db, id)
 		})
 	}
 
@@ -373,6 +432,7 @@ func main() {
 	defer c.Stop()
 
 	goji.Use(DbInjectMiddleware(db))
+	goji.Use(CronInjectMiddleware(c))
 	goji.Get("/", IndexRoute)
 	goji.Post("/addnew", NewCheckRoute)
 	goji.Post("/update/:id", UpdateCheckRoute)
