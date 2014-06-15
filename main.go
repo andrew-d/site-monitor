@@ -7,25 +7,27 @@ import (
 	"encoding/json"
 	"fmt"
 	"io"
-	"log"
 	"net/http"
 	"sort"
 	"strconv"
 	"time"
 
 	"github.com/PuerkitoBio/goquery"
+	"github.com/Sirupsen/logrus"
 	"github.com/boltdb/bolt"
 	"github.com/robfig/cron"
-	"github.com/zenazn/goji"
+	"github.com/zenazn/goji/bind"
+	"github.com/zenazn/goji/graceful"
 	"github.com/zenazn/goji/param"
 	"github.com/zenazn/goji/web"
+	"github.com/zenazn/goji/web/middleware"
 )
 
 var _ = fmt.Printf
 
 // Helper struct for serialization.  Struct tags are used as follows:
-//	- 'json' tags are for serializing to the DB - a tag of "-" will not be stored
-//	- 'param' tags are for retrieving from the user - a tag of "-" will be ignored
+//	- 'json':  For serializing to the DB.  A tag of "-" will not be stored.
+//	- 'param': For retrieving from the user.  A tag of "-" will be ignored.
 type Check struct {
 	ID          uint64    `param:"-",json:"-"`
 	URL         string    `param:"url",json:"url"`
@@ -42,7 +44,31 @@ type Check struct {
 	ShortHash string `param:"-",json:"-"`
 }
 
-var UrlsBucket = []byte("urls")
+type fieldEntry struct {
+	Name  string
+	Value interface{}
+}
+
+type ErrorLog struct {
+	ID      uint64                 `json:"-"`
+	Level   string                 `json:"level"`
+	Message string                 `json:"message"`
+	Time    string                 `json:"time"`
+	Fields  map[string]interface{} `json:"fields"`
+
+	// Time in a prettier format
+	PrettyTime string `json:"-"`
+
+	// Fields in a format that can be interpreted by mustache
+	PrettyFields []fieldEntry `json:"-"`
+}
+
+var (
+	UrlsBucket = []byte("urls")
+	LogsBucket = []byte("logs")
+
+	log = logrus.New()
+)
 
 type byStatus []*Check
 
@@ -79,7 +105,8 @@ func (c *Check) PrepareForDisplay() {
 	if c.LastChecked.IsZero() {
 		c.LastCheckedPretty = "never"
 	} else {
-		c.LastCheckedPretty = c.LastChecked.Format("Jan 2, 2006 at 3:04pm (MST)")
+		c.LastCheckedPretty = c.LastChecked.Format(
+			"Jan 2, 2006 at 3:04pm (MST)")
 	}
 
 	if len(c.LastHash) > 0 {
@@ -89,13 +116,38 @@ func (c *Check) PrepareForDisplay() {
 	}
 }
 
+func (l *ErrorLog) PrepareForDisplay() {
+	// TODO: parse time
+
+	for k, v := range l.Fields {
+		// If there's an "err" value that's an "error" instance, we turn it
+		// into a string.
+		if k == "err" {
+			if err, ok := v.(error); ok {
+				l.PrettyFields = append(l.PrettyFields, fieldEntry{
+					Name:  "err",
+					Value: err.Error(),
+				})
+				continue
+			}
+		}
+
+		l.PrettyFields = append(l.PrettyFields, fieldEntry{
+			Name:  k,
+			Value: v,
+		})
+	}
+}
+
 func GetAllChecks(db *bolt.DB, output *[]*Check) error {
 	return db.View(func(tx *bolt.Tx) error {
 		b := tx.Bucket(UrlsBucket)
 		b.ForEach(func(k, v []byte) error {
 			check := &Check{}
 			if err := json.Unmarshal(v, check); err != nil {
-				log.Printf("error unmarshaling json: %s", err)
+				log.WithFields(logrus.Fields{
+					"err": err,
+				}).Error("error unmarshaling json")
 				return nil
 			}
 
@@ -109,25 +161,60 @@ func GetAllChecks(db *bolt.DB, output *[]*Check) error {
 	})
 }
 
+func GetAllLogs(db *bolt.DB, output *[]*ErrorLog) error {
+	return db.View(func(tx *bolt.Tx) error {
+		b := tx.Bucket(LogsBucket)
+		b.ForEach(func(k, v []byte) error {
+			entry := &ErrorLog{}
+			if err := json.Unmarshal(v, entry); err != nil {
+				log.WithFields(logrus.Fields{
+					"err": err,
+				}).Error("error unmarshaling json")
+				return nil
+			}
+
+			entry.ID = binary.LittleEndian.Uint64(k)
+			entry.PrepareForDisplay()
+
+			*output = append(*output, entry)
+			return nil
+		})
+		return nil
+	})
+}
+
 func (c *Check) Update(db *bolt.DB) {
-	log.Printf("updating document with url: %s", c.URL)
+	log.WithFields(logrus.Fields{
+		"id":  c.ID,
+		"url": c.URL,
+	}).Info("updating document")
 
 	resp, err := http.Get(c.URL)
 	if err != nil {
-		log.Printf("error fetching check %d: %s", c.ID, err)
+		log.WithFields(logrus.Fields{
+			"id":  c.ID,
+			"err": err,
+			"url": c.URL,
+		}).Error("error fetching check")
 		return
 	}
 
 	doc, err := goquery.NewDocumentFromResponse(resp)
 	if err != nil {
-		log.Printf("error parsing check %d: %s", c.ID, err)
+		log.WithFields(logrus.Fields{
+			"id":  c.ID,
+			"err": err,
+		}).Error("error parsing check")
 		return
 	}
 
 	// Get all nodes matching the given selector
 	sel := doc.Find(c.Selector)
 	if sel.Length() == 0 {
-		log.Printf("error checking %d: no nodes in selection", c.ID)
+		log.WithFields(logrus.Fields{
+			"id":       c.ID,
+			"selector": c.Selector,
+		}).Error("error in check: no nodes in selection")
 		return
 	}
 
@@ -138,7 +225,11 @@ func (c *Check) Update(db *bolt.DB) {
 
 	// Check for update
 	if c.LastHash != sum {
-		log.Printf("document %d changed: %s --> %s", c.ID, c.LastHash, sum)
+		log.WithFields(logrus.Fields{
+			"id":       c.ID,
+			"lastHash": c.LastHash,
+			"sum":      sum,
+		}).Info("document changed")
 		c.LastHash = sum
 		c.SeenChange = false
 	}
@@ -170,8 +261,14 @@ func IndexRoute(c web.C, w http.ResponseWriter, r *http.Request) {
 
 	// Sort the checks with our custom comparator.
 	sort.Sort(byStatus(items))
-
 	context["items"] = items
+
+	// Show the number of unread logs.
+	db.View(func(tx *bolt.Tx) error {
+		context["log-count"] = tx.Bucket(LogsBucket).Stats().KeyN
+		return nil
+	})
+
 	RenderTemplateTo(w, "index", context)
 }
 
@@ -219,7 +316,10 @@ func NewCheckRoute(c web.C, w http.ResponseWriter, r *http.Request) {
 		return nil
 	})
 	if err != nil {
-		log.Printf("error inserting item: %s", err)
+		log.WithFields(logrus.Fields{
+			"err":   err,
+			"check": check,
+		}).Error("error inserting new item")
 		http.Error(w, err.Error(), http.StatusInternalServerError)
 		return
 	}
@@ -253,7 +353,9 @@ func UpdateCheckRoute(c web.C, w http.ResponseWriter, r *http.Request) {
 		}
 
 		if err := json.Unmarshal(data, check); err != nil {
-			log.Printf("error unmarshaling json: %s", err)
+			log.WithFields(logrus.Fields{
+				"err": err,
+			}).Error("error unmarshaling json")
 			return err
 		}
 
@@ -307,7 +409,9 @@ func SeenCheckRoute(c web.C, w http.ResponseWriter, r *http.Request) {
 
 		check := &Check{}
 		if err := json.Unmarshal(data, check); err != nil {
-			log.Printf("error unmarshaling json: %s", err)
+			log.WithFields(logrus.Fields{
+				"err": err,
+			}).Error("error unmarshaling json")
 			return err
 		}
 
@@ -340,29 +444,41 @@ func StatsRoute(c web.C, w http.ResponseWriter, r *http.Request) {
 		return nil
 	})
 
+	// Show the number of unread logs.
+	db.View(func(tx *bolt.Tx) error {
+		context["log-count"] = tx.Bucket(LogsBucket).Stats().KeyN
+		return nil
+	})
+
 	RenderTemplateTo(w, "stats", context)
 }
 
-func DbInjectMiddleware(db *bolt.DB) func(c *web.C, h http.Handler) http.Handler {
-	middleware := func(c *web.C, h http.Handler) http.Handler {
-		fn := func(w http.ResponseWriter, r *http.Request) {
-			c.Env["db"] = db
-			h.ServeHTTP(w, r)
-		}
-		return http.HandlerFunc(fn)
-	}
-	return middleware
+func LogsRoute(c web.C, w http.ResponseWriter, r *http.Request) {
+	context := map[string]interface{}{}
+	db := c.Env["db"].(*bolt.DB)
+
+	// Fetch a list of all items.
+	var items []*ErrorLog
+	GetAllLogs(db, &items)
+
+	context["items"] = items
+	context["log-count"] = len(items)
+	RenderTemplateTo(w, "logs", context)
 }
 
-func CronInjectMiddleware(cr *cron.Cron) func(c *web.C, h http.Handler) http.Handler {
-	middleware := func(c *web.C, h http.Handler) http.Handler {
-		fn := func(w http.ResponseWriter, r *http.Request) {
-			c.Env["cron"] = cr
-			h.ServeHTTP(w, r)
-		}
-		return http.HandlerFunc(fn)
-	}
-	return middleware
+func LogsClearRoute(c web.C, w http.ResponseWriter, r *http.Request) {
+	db := c.Env["db"].(*bolt.DB)
+
+	db.Update(func(tx *bolt.Tx) error {
+		b := tx.Bucket(LogsBucket)
+		b.ForEach(func(k, v []byte) error {
+			b.Delete(k)
+			return nil
+		})
+		return nil
+	})
+
+	http.Redirect(w, r, "/logs", http.StatusSeeOther)
 }
 
 func TryUpdate(db *bolt.DB, id uint64) {
@@ -377,7 +493,9 @@ func TryUpdate(db *bolt.DB, id uint64) {
 		}
 
 		if err := json.Unmarshal(data, check); err != nil {
-			log.Printf("error unmarshaling json: %s", err)
+			log.WithFields(logrus.Fields{
+				"err": err,
+			}).Error("error unmarshaling json")
 			return err
 		}
 
@@ -391,7 +509,9 @@ func TryUpdate(db *bolt.DB, id uint64) {
 	}
 
 	if !found {
-		log.Printf("skipping update for deleted check: %d", id)
+		log.WithFields(logrus.Fields{
+			"id": id,
+		}).Info("skipping update for deleted check")
 		return
 	}
 
@@ -399,40 +519,107 @@ func TryUpdate(db *bolt.DB, id uint64) {
 	check.Update(db)
 }
 
-func main() {
-	db, err := bolt.Open("./monitor.db", 0666)
+type ErrorsHook struct {
+	DB *bolt.DB
+}
+
+func (hook *ErrorsHook) Fire(entry *logrus.Entry) error {
+	filteredFields := make(map[string]interface{})
+	for k, v := range entry.Data {
+		if k != "level" && k != "msg" && k != "time" {
+			filteredFields[k] = v
+		}
+	}
+
+	logEntry := ErrorLog{
+		Level:   entry.Data["level"].(string),
+		Message: entry.Data["msg"].(string),
+		Time:    entry.Data["time"].(string),
+		Fields:  filteredFields,
+	}
+
+	err := hook.DB.Update(func(tx *bolt.Tx) error {
+		data, err := json.Marshal(logEntry)
+		if err != nil {
+			return err
+		}
+
+		b := tx.Bucket(LogsBucket)
+		seq, err := b.NextSequence()
+		if err != nil {
+			return err
+		}
+
+		if err = b.Put(KeyFor(seq), data); err != nil {
+			return err
+		}
+		return nil
+	})
+
 	if err != nil {
-		log.Fatalf("error opening db: %s", err)
+		// Note: shouldn't try to send another error+ message here, since we
+		// might just recurse forever.
+		log.WithFields(logrus.Fields{
+			"err": err,
+		}).Warn("failed to log error to db")
+	}
+	return nil
+}
+
+func (hook *ErrorsHook) Levels() []logrus.Level {
+	return []logrus.Level{
+		logrus.Error,
+		logrus.Fatal,
+		logrus.Panic,
+	}
+}
+
+func main() {
+	dbPath := "./monitor.db"
+	db, err := bolt.Open(dbPath, 0666)
+	if err != nil {
+		log.WithFields(logrus.Fields{
+			"path": dbPath,
+			"err":  err,
+		}).Fatal("error opening db")
 	}
 	defer db.Close()
 
 	c := cron.New()
 
 	// Create collections.
-	buckets := []string{"urls"}
+	buckets := [][]byte{UrlsBucket, LogsBucket}
 	db.Update(func(tx *bolt.Tx) error {
 		for _, v := range buckets {
-			b := tx.Bucket([]byte(v))
+			b := tx.Bucket(v)
 			if b == nil {
-				tx.CreateBucket([]byte(v))
+				tx.CreateBucket(v)
 			}
 		}
 		return nil
 	})
 
+	// Add a hook to our logger that will catch errors (and above) and will add
+	// them to our error log.
+	log.Hooks.Add(&ErrorsHook{
+		DB: db,
+	})
+
 	// Initialize for each of the existing URLs
 	var items []*Check
 	if err = GetAllChecks(db, &items); err != nil {
-		log.Fatalf("error loading checks: %s", err)
+		log.WithFields(logrus.Fields{
+			"err": err,
+		}).Fatal("error loading checks")
 	}
 
 	for _, v := range items {
 		// Trigger the update now...
 		go v.Update(db)
 
-		// ... and add a cron task for later.  Note that we pull out the ID into a
-		// new variable so that we don't keep the entire Check structure from being
-		// garbage collected.
+		// ... and add a cron task for later.  Note that we pull out the ID
+		// into a new variable so that we don't keep the entire Check structure
+		// from being garbage collected.
 		id := v.ID
 		c.AddFunc(v.Schedule, func() {
 			TryUpdate(db, id)
@@ -443,17 +630,37 @@ func main() {
 	c.Start()
 	defer c.Stop()
 
-	goji.Use(DbInjectMiddleware(db))
-	goji.Use(CronInjectMiddleware(c))
-	goji.Get("/", IndexRoute)
-	goji.Post("/addnew", NewCheckRoute)
-	goji.Post("/update/:id", UpdateCheckRoute)
-	goji.Post("/delete/:id", DeleteCheckRoute)
-	goji.Post("/seen/:id", SeenCheckRoute)
-	goji.Get("/stats", StatsRoute)
-	goji.Get("/static/*", http.StripPrefix("/static/",
-		http.FileServer(http.Dir("./static"))))
-	goji.Serve()
+	mux := web.New()
 
-	log.Print("Finishing...")
+	mux.Use(middleware.RequestID)
+	mux.Use(LoggerMiddleware)
+	mux.Use(RecovererMiddleware)
+	mux.Use(middleware.AutomaticOptions)
+	mux.Use(DbInjectMiddleware(db))
+	mux.Use(CronInjectMiddleware(c))
+
+	mux.Get("/", IndexRoute)
+	mux.Post("/addnew", NewCheckRoute)
+	mux.Post("/update/:id", UpdateCheckRoute)
+	mux.Post("/delete/:id", DeleteCheckRoute)
+	mux.Post("/seen/:id", SeenCheckRoute)
+	mux.Get("/stats", StatsRoute)
+	mux.Get("/logs", LogsRoute)
+	mux.Post("/logs/clear", LogsClearRoute)
+	mux.Get("/static/*", http.StripPrefix("/static/",
+		http.FileServer(http.Dir("./static"))))
+
+	// We re-create what goji does to serve here.
+	http.Handle("/", mux)
+	listener := bind.Default()
+	log.Println("starting server on", listener.Addr())
+	bind.Ready()
+
+	err = graceful.Serve(listener, http.DefaultServeMux)
+	if err != nil {
+		// TODO: what?
+	}
+	graceful.Wait()
+
+	log.Info("Finished")
 }

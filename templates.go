@@ -69,6 +69,12 @@ func init() {
 						<ul class="nav navbar-nav">
 							<li><a href="/">Home</a></li>
 							<li><a href="/stats">Statistics</a></li>
+							<li>
+								<a href="/logs">
+									<span class="badge pull-right">{{log-count}}</span>
+									Logs&nbsp;
+								</a>
+							</li>
 							<li><a href="/about">About</a></li>
 						</ul>
 					</div>
@@ -239,6 +245,41 @@ func init() {
 			</tr>
 		{{/url-stats}}
 		</tbody>
+	</table>
+	`)
+
+	ParseTemplate("logs", `
+	<h1>Logs</h1>
+
+	<form class="form-inline" action="/logs/clear" method="POST">
+		<button type="submit" class="btn btn-primary">
+			Clear Logs
+		</button>
+	</form>
+
+	<table class="table">
+		<thead>
+			<tr>
+				<th>Time</th>
+				<th>Level</th>
+				<th>Message</th>
+				<th>Fields</th>
+			</tr>
+		</thead>
+		{{#items}}
+			<tr>
+				<td>{{Time}}</td>
+				<td>{{Level}}</td>
+				<td>{{Message}}</td>
+				<td>
+					<ul>
+					{{#PrettyFields}}
+						<li><b>{{Name}}</b>: {{Value}}</li>
+					{{/PrettyFields}}
+					</ul>
+				</td>
+			</tr>
+		{{/items}}
 	</table>
 	`)
 }
