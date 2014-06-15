@@ -268,7 +268,7 @@ func init() {
 		</thead>
 		{{#items}}
 			<tr>
-				<td>{{Time}}</td>
+				<td>{{PrettyTime}}</td>
 				<td>{{Level}}</td>
 				<td>{{Message}}</td>
 				<td>

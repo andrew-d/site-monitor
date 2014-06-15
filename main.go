@@ -117,13 +117,21 @@ func (c *Check) PrepareForDisplay() {
 }
 
 func (l *ErrorLog) PrepareForDisplay() {
-	// TODO: parse time
+	parsed, err := time.Parse("2006-01-02 15:04:05.999999999 -0700 MST",
+		l.Time)
+	if err == nil {
+		l.PrettyTime = parsed.Format("2006-01-02 15:04:05 MST")
+	} else {
+		log.Printf("could not parse time: %s", err)
+		l.PrettyTime = l.Time
+	}
 
 	for k, v := range l.Fields {
 		// If there's an "err" value that's an "error" instance, we turn it
 		// into a string.
 		if k == "err" {
-			if err, ok := v.(error); ok {
+			switch err := v.(type) {
+			case error:
 				l.PrettyFields = append(l.PrettyFields, fieldEntry{
 					Name:  "err",
 					Value: err.Error(),
@@ -193,7 +201,7 @@ func (c *Check) Update(db *bolt.DB) {
 	if err != nil {
 		log.WithFields(logrus.Fields{
 			"id":  c.ID,
-			"err": err,
+			"err": err.Error(),
 			"url": c.URL,
 		}).Error("error fetching check")
 		return
