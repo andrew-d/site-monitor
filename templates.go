@@ -85,7 +85,7 @@ func init() {
 				{{{content}}}
 			</div>
 
-			<script src="/static/js/bootstrap.min.js"></script>
+			<script src="/static/js/lib/bootstrap.min.js"></script>
 		</body>
 	</html>
 	`)
