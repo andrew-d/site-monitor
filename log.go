@@ -58,6 +58,7 @@ func (l *ErrorLog) PrepareForDisplay() {
 		})
 	}
 }
+
 func GetAllLogs(db *bolt.DB, output *[]*ErrorLog) error {
 	return db.View(func(tx *bolt.Tx) error {
 		b := tx.Bucket(LogsBucket)

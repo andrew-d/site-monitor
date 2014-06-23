@@ -212,7 +212,7 @@ func main() {
 	}
 
 	mux.Get("/api/checks", RouteChecksGetAll)
-	//api.Post("/api/checks", NewCheckRoute)
+	mux.Post("/api/checks", RouteChecksNew)
 	//api.Put("/api/checks/:id", UpdateCheckRoute)
 	//api.Delete("/api/checks/:id", DeleteCheckRoute)
 	//api.Post("/api/checks/:id", SeenCheckRoute)

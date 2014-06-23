@@ -4,7 +4,9 @@ import (
 	"encoding/json"
 	"net/http"
 
+	"github.com/Sirupsen/logrus"
 	"github.com/boltdb/bolt"
+	"github.com/robfig/cron"
 	"github.com/zenazn/goji/web"
 )
 
@@ -23,29 +25,37 @@ func RouteChecksGetAll(c web.C, w http.ResponseWriter, r *http.Request) {
 	}
 }
 
-/*
-func NewCheckRoute(c web.C, w http.ResponseWriter, r *http.Request) {
+func RouteChecksNew(c web.C, w http.ResponseWriter, r *http.Request) {
 	db := c.Env["db"].(*bolt.DB)
 
-	var check Check
-	r.ParseForm()
-	err := param.Parse(r.Form, &check)
+	params := struct {
+		URL      string `json:"url"`
+		Selector string `json:"selector"`
+		Schedule string `json:"schedule"`
+	}{}
+
+	err := json.NewDecoder(r.Body).Decode(&params)
 	if err != nil {
-		http.Error(w, err.Error(), http.StatusBadRequest)
-		return
+		panic(err)
 	}
 
-	if len(check.URL) == 0 {
+	if len(params.URL) == 0 {
 		http.Error(w, "missing URL parameter", http.StatusBadRequest)
 		return
 	}
-	if len(check.Selector) == 0 {
+	if len(params.Selector) == 0 {
 		http.Error(w, "missing Selector parameter", http.StatusBadRequest)
 		return
 	}
-	if len(check.Schedule) == 0 {
+	if len(params.Schedule) == 0 {
 		http.Error(w, "missing Schedule parameter", http.StatusBadRequest)
 		return
+	}
+
+	check := Check{
+		URL:      params.URL,
+		Selector: params.Selector,
+		Schedule: params.Schedule,
 	}
 
 	err = db.Update(func(tx *bolt.Tx) error {
@@ -67,6 +77,7 @@ func NewCheckRoute(c web.C, w http.ResponseWriter, r *http.Request) {
 		}
 		return nil
 	})
+
 	if err != nil {
 		log.WithFields(logrus.Fields{
 			"err":   err,
@@ -84,10 +95,9 @@ func NewCheckRoute(c web.C, w http.ResponseWriter, r *http.Request) {
 	cr.AddFunc(check.Schedule, func() {
 		TryUpdate(db, check.ID)
 	})
-
-	http.Redirect(w, r, "/", http.StatusSeeOther)
 }
 
+/*
 func UpdateCheckRoute(c web.C, w http.ResponseWriter, r *http.Request) {
 	db := c.Env["db"].(*bolt.DB)
 
