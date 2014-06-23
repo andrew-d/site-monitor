@@ -1,0 +1,48 @@
+{
+	"ImportPath": "github.com/andrew-d/site-monitor",
+	"GoVersion": "go1.3",
+	"Deps": [
+		{
+			"ImportPath": "code.google.com/p/cascadia",
+			"Comment": "null-30",
+			"Rev": "4f03c71bc42ba0015a68bea86422f0ecbb71bf70"
+		},
+		{
+			"ImportPath": "code.google.com/p/go.net/html",
+			"Comment": "null-124",
+			"Rev": "79f92c7cc23cc10a2d1067ee4060a2fad070a9cd"
+		},
+		{
+			"ImportPath": "github.com/PuerkitoBio/goquery",
+			"Comment": "v0.3.2-22-ga3fdc62",
+			"Rev": "a3fdc62e311a44c5199b0ef323ee5e056c527ef1"
+		},
+		{
+			"ImportPath": "github.com/Sirupsen/logrus",
+			"Comment": "v0.2.0-9-g97978e5",
+			"Rev": "97978e5e5483a3f926c2bb6e19f9e2ff344e81f0"
+		},
+		{
+			"ImportPath": "github.com/boltdb/bolt",
+			"Comment": "data/v1-156-g0329b03",
+			"Rev": "0329b03f58799ab8e51e7567f836c80c24258a16"
+		},
+		{
+			"ImportPath": "github.com/robfig/cron",
+			"Comment": "v1-3-gb024fc5",
+			"Rev": "b024fc5ea0e34bc3f83d9941c8d60b0622bfaca4"
+		},
+		{
+			"ImportPath": "github.com/zenazn/goji/bind",
+			"Rev": "f70d2a33c1813a235a0f5f84bb5c2ce80aef57c3"
+		},
+		{
+			"ImportPath": "github.com/zenazn/goji/graceful",
+			"Rev": "f70d2a33c1813a235a0f5f84bb5c2ce80aef57c3"
+		},
+		{
+			"ImportPath": "github.com/zenazn/goji/web",
+			"Rev": "f70d2a33c1813a235a0f5f84bb5c2ce80aef57c3"
+		}
+	]
+}

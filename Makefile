@@ -39,7 +39,7 @@ all: site-monitor
 
 site-monitor: resources.go $(wildcard *.go)
 	@echo -e "  $(GREEN)GO$(NOCOLOR)       $@"
-	$(CMD_PREFIX)go build -o $@ .
+	$(CMD_PREFIX)godep go build -o $@ .
 
 resources.go: $(RESOURCES)
 	@echo -e "  $(GREEN)BINDATA$(NOCOLOR)  $@"
