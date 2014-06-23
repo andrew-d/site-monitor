@@ -2,7 +2,7 @@ module.exports = {
     cache: true,
     entry: "./static/js/app.jsx",
     output: {
-        path: __dirname + "/build",
+        path: __dirname + "/build/js",
         filename: "bundle.js"
     },
     devtool: "source-map",
