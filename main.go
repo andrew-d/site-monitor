@@ -213,9 +213,9 @@ func main() {
 
 	mux.Get("/api/checks", RouteChecksGetAll)
 	mux.Post("/api/checks", RouteChecksNew)
-	//api.Put("/api/checks/:id", UpdateCheckRoute)
-	//api.Delete("/api/checks/:id", DeleteCheckRoute)
-	//api.Post("/api/checks/:id", SeenCheckRoute)
+	mux.Patch("/api/checks/:id", RouteChecksModify)
+	mux.Delete("/api/checks/:id", RouteChecksDelete)
+	mux.Post("/api/checks/:id/update", RouteChecksUpdateOne)
 	mux.Get("/api/stats", RouteStatsGetAll)
 	mux.Get("/api/logs", RouteLogsGetAll)
 	mux.Delete("/api/logs", RouteLogsDeleteAll)

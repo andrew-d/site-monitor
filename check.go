@@ -16,7 +16,7 @@ import (
 
 // Helper struct for serialization.
 type Check struct {
-	ID          uint64    `json:"-"`
+	ID          uint64    `json:"id"`
 	URL         string    `json:"url"`
 	Selector    string    `json:"selector"`
 	Schedule    string    `json:"schedule"`
