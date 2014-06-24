@@ -206,6 +206,8 @@ func main() {
 		{"js/bundle.js", "text/javascript"},
 		{"js/lib/bootstrap.min.js", "text/javascript"},
 		{"css/bootstrap.min.css", "text/css"},
+		{"fonts/glyphicons-halflings-regular.woff", "application/font-woff"},
+		{"fonts/glyphicons-halflings-regular.ttf", "application/x-font-ttf"},
 	}
 	for _, asset := range assets {
 		mux.Get("/"+asset.Path, ServeAsset(asset.Path, asset.Mime))

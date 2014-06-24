@@ -20,7 +20,9 @@ endif
 
 JS_FILES     := $(shell find static/js/ -name '*.js')
 STATIC_FILES := static/js/lib/bootstrap.min.js \
-                static/css/bootstrap.min.css
+                static/css/bootstrap.min.css \
+                static/fonts/glyphicons-halflings-regular.woff \
+                static/fonts/glyphicons-halflings-regular.ttf
 BUILD_FILES  := $(patsubst static/%,build/%,$(STATIC_FILES))
 RESOURCES    := build/index.html build/js/bundle.js $(BUILD_FILES)
 
@@ -64,6 +66,11 @@ build/js/%: static/js/%
 	$(CMD_PREFIX)cp $< $@
 
 build/css/%: static/css/%
+	@echo -e "  $(GREEN)CP$(NOCOLOR)       $< ==> $@"
+	@mkdir -p $(dir $@)
+	$(CMD_PREFIX)cp $< $@
+
+build/fonts/%: static/fonts/%
 	@echo -e "  $(GREEN)CP$(NOCOLOR)       $< ==> $@"
 	@mkdir -p $(dir $@)
 	$(CMD_PREFIX)cp $< $@
