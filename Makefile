@@ -40,11 +40,11 @@ NOCOLOR := \e[0m
 all: site-monitor
 
 site-monitor: resources.go $(wildcard *.go)
-	@echo -e "  $(GREEN)GO$(NOCOLOR)       $@"
+	@printf "  $(GREEN)GO$(NOCOLOR)       $@\n"
 	$(CMD_PREFIX)godep go build -o $@ .
 
 resources.go: $(RESOURCES)
-	@echo -e "  $(GREEN)BINDATA$(NOCOLOR)  $@"
+	@printf "  $(GREEN)BINDATA$(NOCOLOR)  $@\n"
 	$(CMD_PREFIX)go-bindata \
 		-ignore=\\.gitignore \
 		$(BINDATA_FLAGS) \
@@ -53,25 +53,25 @@ resources.go: $(RESOURCES)
 		$(sort $(dir $^))
 
 build/js/bundle.js: $(JS_FILES)
-	@echo -e "  $(GREEN)WEBPACK$(NOCOLOR)  $@"
+	@printf "  $(GREEN)WEBPACK$(NOCOLOR)  $@\n"
 	$(CMD_PREFIX)webpack --progress --colors $(NULL_REDIR)
 
 build/index.html: static/index.html
-	@echo -e "  $(GREEN)CP$(NOCOLOR)       $< ==> $@"
+	@printf "  $(GREEN)CP$(NOCOLOR)       $< ==> $@\n"
 	$(CMD_PREFIX)cp $< $@
 
 build/js/%: static/js/%
-	@echo -e "  $(GREEN)CP$(NOCOLOR)       $< ==> $@"
+	@printf "  $(GREEN)CP$(NOCOLOR)       $< ==> $@\n"
 	@mkdir -p $(dir $@)
 	$(CMD_PREFIX)cp $< $@
 
 build/css/%: static/css/%
-	@echo -e "  $(GREEN)CP$(NOCOLOR)       $< ==> $@"
+	@printf "  $(GREEN)CP$(NOCOLOR)       $< ==> $@\n"
 	@mkdir -p $(dir $@)
 	$(CMD_PREFIX)cp $< $@
 
 build/fonts/%: static/fonts/%
-	@echo -e "  $(GREEN)CP$(NOCOLOR)       $< ==> $@"
+	@printf "  $(GREEN)CP$(NOCOLOR)       $< ==> $@\n"
 	@mkdir -p $(dir $@)
 	$(CMD_PREFIX)cp $< $@
 
@@ -81,7 +81,7 @@ build/fonts/%: static/fonts/%
 .PHONY: clean
 CLEAN_FILES := build/index.html build/js build/css site-monitor
 clean:
-	@echo -e "  $(YELLOW)RM$(NOCOLOR)       $(CLEAN_FILES)"
+	@printf "  $(YELLOW)RM$(NOCOLOR)       $(CLEAN_FILES)\n"
 	$(CMD_PREFIX)$(RM) -r $(CLEAN_FILES)
 
 .PHONY: env
