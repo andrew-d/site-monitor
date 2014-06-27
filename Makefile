@@ -37,7 +37,7 @@ NOCOLOR := \e[0m
 
 ######################################################################
 
-all: site-monitor
+all: dependencies site-monitor
 
 site-monitor: resources.go $(wildcard *.go)
 	@printf "  $(GREEN)GO$(NOCOLOR)       $@\n"
@@ -75,6 +75,15 @@ build/fonts/%: static/fonts/%
 	@mkdir -p $(dir $@)
 	$(CMD_PREFIX)cp $< $@
 
+
+# This is a phony target that checks to ensure our various dependencies are installed
+.PHONY: dependencies
+dependencies:
+	@command -v go-bindata >/dev/null 2>&1 || { printf >&2 "go-bindata is not installed, exiting...\n"; exit 1; }
+	@command -v webpack    >/dev/null 2>&1 || { printf >&2 "webpack is not installed, exiting...\n"; exit 1; }
+	@command -v godep      >/dev/null 2>&1 || { printf >&2 "godep is not installed, exiting...\n"; exit 1; }
+	@# Since webpack doesn't seem to exit with an error if this isn't present...
+	@test -d node_modules/jsx-loader || { printf >&2 "npm dependencies not satisfied, exiting...\n"; exit 1; }
 
 ######################################################################
 
