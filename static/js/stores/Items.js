@@ -27,6 +27,7 @@ var ItemsStore = Fluxxor.createStore({
                 schedule: payload.schedule,
             })
             .end(function(res) {
+                // TODO: error checking
                 this.items.push(res.body);
                 this.emit('change');
             }.bind(this));
@@ -40,16 +41,23 @@ var ItemsStore = Fluxxor.createStore({
             .type('json')
             .set('Accept', 'application/json')
             .end(function(res) {
-                // TODO: error checking.
+                // TODO: error checking
                 self.items = res.body;
                 self.emit('change');
             });
     },
 
     onDeleteItem: function(id) {
-        this.items = _.reject(this.items, {'id': id});
-        // TODO: delete on server
-        this.emit('change');
+        var item = _.find(this.items, {'id': id});
+        if( item ) {
+            request
+                .del('/api/checks/' + id)
+                .end(function(res) {
+                    // TODO: error checking
+                    this.items = _.reject(this.items, {'id': id});
+                    this.emit('change');
+                }.bind(this));
+        }
     },
 
     onMarkItemRead: function(id) {
@@ -61,6 +69,7 @@ var ItemsStore = Fluxxor.createStore({
                 .set('Accept', 'application/json')
                 .send({seen: true})
                 .end(function(res) {
+                    // TODO: error checking
                     item.seen = true;
                     this.emit('change');
                 }.bind(this));
