@@ -1,5 +1,5 @@
 var Fluxxor = require('fluxxor'),
-    _       = require('underscore');
+    _       = require('lodash');
 
 var Items = require('./Items.js'),
     Logs  = require('./Logs.js');

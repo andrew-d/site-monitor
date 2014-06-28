@@ -20,9 +20,9 @@
     "envify": "^1.2.1",
     "fluxxor": "^1.2.2",
     "jquery": "^2.1.1",
+    "lodash": "^2.4.1",
     "react": "^0.10.0",
-    "rrouter": "^0.4.0",
-    "underscore": "^1.6.0"
+    "rrouter": "^0.4.0"
   },
   "devDependencies": {
     "jsx-loader": "^0.10.2"
