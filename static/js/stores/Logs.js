@@ -1,13 +1,16 @@
-var Fluxxor = require('fluxxor');
+var Fluxxor = require('fluxxor'),
+    $       = require('jquery');
 
 var LogsStore = Fluxxor.createStore({
     actions: {
         'ADD_LOG': 'onAddLog',
         'CLEAR_LOGS': 'onClearLogs',
+        'REFRESH_LOGS': 'onRefreshLogs',
     },
 
     initialize: function() {
         this.logs = [];
+        this.onRefreshLogs();
     },
 
     onAddLog: function(payload) {
@@ -23,12 +26,28 @@ var LogsStore = Fluxxor.createStore({
         this.emit('change');
     },
 
+    onRefreshLogs: function() {
+        var self = this;
+
+        $.getJSON('/api/logs', function(data) {
+            // TODO: should merge intelligently
+            self.logs.concat(data);
+
+            if( data.length > 0 ) {
+                self.emit('change');
+            }
+        });
+    },
+
     getState: function() {
         return {
             logs: this.logs,
         };
     },
 });
+
+
+// TODO: set up websocket connection or something to update this
 
 
 var actions = {
@@ -40,6 +59,9 @@ var actions = {
     },
     clearLogs: function() {
         this.dispatch("CLEAR_LOGS");
+    },
+    refreshLogs: function() {
+        this.dispatch("REFRESH_LOGS");
     },
 };
 

@@ -15,8 +15,8 @@ var FluxMixin = Fluxxor.FluxMixin(React),
 var flux = require('./stores/stores.js');
 
 var Navbar = require('./Navbar.jsx'),
-	Logs   = require('./Logs.jsx'),
-	Main   = require('./Main.jsx');
+    Logs   = require('./Logs.jsx'),
+    Main   = require('./Main.jsx');
 
 var App = React.createClass({
     mixins: [FluxMixin, StoreWatchMixin("LogStore")],

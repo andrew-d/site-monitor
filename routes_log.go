@@ -9,17 +9,13 @@ import (
 )
 
 func RouteLogsGetAll(c web.C, w http.ResponseWriter, r *http.Request) {
-	context := map[string]interface{}{}
 	db := c.Env["db"].(*bolt.DB)
 
 	// Fetch a list of all items.
-	var items []*ErrorLog
+	items := []*ErrorLog{}
 	GetAllLogs(db, &items)
 
-	context["items"] = items
-	context["log-count"] = len(items)
-
-	json.NewEncoder(w).Encode(context)
+	json.NewEncoder(w).Encode(items)
 }
 
 func RouteLogsDeleteAll(c web.C, w http.ResponseWriter, r *http.Request) {
