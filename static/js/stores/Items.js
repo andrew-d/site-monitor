@@ -17,13 +17,19 @@ var ItemsStore = Fluxxor.createStore({
     },
 
     onAddItem: function(payload) {
-        this.items.push({
-            url:      payload.url,
-            selector: payload.selector,
-            schedule: payload.schedule,
-        });
-        // TODO: save to server
-        this.emit('change');
+        request
+            .post('/api/checks')
+            .type('json')
+            .set('Accept', 'application/json')
+            .send({
+                url:      payload.url,
+                selector: payload.selector,
+                schedule: payload.schedule,
+            })
+            .end(function(res) {
+                this.items.push(res.body);
+                this.emit('change');
+            }.bind(this));
     },
 
     onRefreshItems: function() {
