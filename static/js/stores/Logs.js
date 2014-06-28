@@ -1,5 +1,5 @@
 var Fluxxor = require('fluxxor'),
-    $       = require('jquery');
+    request = require('superagent');
 
 var LogsStore = Fluxxor.createStore({
     actions: {
@@ -29,14 +29,17 @@ var LogsStore = Fluxxor.createStore({
     onRefreshLogs: function() {
         var self = this;
 
-        $.getJSON('/api/logs', function(data) {
-            // TODO: should merge intelligently
-            self.logs.concat(data);
-
-            if( data.length > 0 ) {
-                self.emit('change');
-            }
-        });
+        request
+            .get('/api/logs')
+            .type('json')
+            .set('Accept', 'application/json')
+            .end(function(res) {
+                // TODO: error checking.
+                self.logs.concat(res.body);
+                if( res.body.length > 0 ) {
+                    self.emit('change');
+                }
+            });
     },
 
     getState: function() {

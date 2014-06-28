@@ -1,5 +1,5 @@
 var Fluxxor = require('fluxxor'),
-    $       = require('jquery'),
+    request = require('superagent'),
     _       = require('lodash');
 
 var ItemsStore = Fluxxor.createStore({
@@ -29,10 +29,15 @@ var ItemsStore = Fluxxor.createStore({
     onRefreshItems: function() {
         var self = this;
 
-        $.getJSON("/api/checks", function(data) {
-            self.items = data;
-            self.emit('change');
-        });
+        request
+            .get('/api/checks')
+            .type('json')
+            .set('Accept', 'application/json')
+            .end(function(res) {
+                // TODO: error checking.
+                self.items = res.body;
+                self.emit('change');
+            });
     },
 
     onDeleteItem: function(id) {
