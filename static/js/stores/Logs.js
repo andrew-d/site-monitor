@@ -28,8 +28,12 @@ var LogsStore = Fluxxor.createStore({
     },
 
     onClearLogs: function() {
-        this.logs = [];
-        this.emit('change');
+        request
+            .del("/api/logs")
+            .end(function(res) {
+                this.logs = [];
+                this.emit('change');
+            }.bind(this));
     },
 
     onRefreshLogs: function() {
