@@ -101,7 +101,7 @@ func RouteChecksNew(c web.C, w http.ResponseWriter, r *http.Request) {
 		TryUpdate(db, check.ID)
 	})
 
-	// TODO: http status
+	w.WriteHeader(http.StatusCreated)
 	json.NewEncoder(w).Encode(check)
 }
 
@@ -246,5 +246,6 @@ func RouteChecksDelete(c web.C, w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	// TODO: http status
+	w.Header().Del("Content-Type")
+	w.WriteHeader(http.StatusNoContent)
 }
