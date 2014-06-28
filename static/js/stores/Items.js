@@ -74,7 +74,16 @@ var ItemsStore = Fluxxor.createStore({
     },
 
     onRefreshItem: function(id) {
-        // TODO: talk to server
+        if( this._hasItem(id) ) {
+            request
+                .post('/api/checks/' + id + '/update')
+                .accept('json')
+                .end(function(res) {
+                    // TODO: error checking
+                    _.assign(_.find(this.items, {'id': id}), res.body);
+                    this.emit('change');
+                }.bind(this));
+        }
     },
 
 
