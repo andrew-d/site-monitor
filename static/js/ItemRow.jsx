@@ -57,15 +57,15 @@ var ItemRow = React.createClass({
     },
 
     onMarkRead: function() {
-        console.log("Marking as read");
+        this.getFlux().actions.markItemRead(this.props.item.id);
     },
 
     onDeleteItem: function() {
-        console.log("Deleting item");
+        this.getFlux().actions.deleteItem(this.props.item.id);
     },
 
     onRefreshItem: function() {
-        console.log("Refreshing item");
+        this.getFlux().actions.refreshItem(this.props.item.id);
     },
 });
 
