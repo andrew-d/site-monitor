@@ -47,11 +47,17 @@ var ItemsStore = Fluxxor.createStore({
     },
 
     onMarkItemRead: function(id) {
-        // TODO: talk to server
         var item = _.find(this.items, {'id': id});
         if( item ) {
-            item.seen = true;
-            this.emit('change');
+            request
+                .patch('/api/checks/' + id)
+                .type('json')
+                .set('Accept', 'application/json')
+                .send({seen: true})
+                .end(function(res) {
+                    item.seen = true;
+                    this.emit('change');
+                }.bind(this));
         }
     },
 
