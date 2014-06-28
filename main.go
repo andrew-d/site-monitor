@@ -4,6 +4,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"net/http"
+	"time"
 
 	"github.com/Sirupsen/logrus"
 	"github.com/boltdb/bolt"
@@ -90,11 +91,19 @@ func (hook *ErrorsHook) Fire(entry *logrus.Entry) error {
 	logEntry := ErrorLog{
 		Level:   entry.Data["level"].(string),
 		Message: entry.Data["msg"].(string),
-		Time:    entry.Data["time"].(string),
 		Fields:  filteredFields,
 	}
 
-	err := hook.DB.Update(func(tx *bolt.Tx) error {
+	// Parse the time we're given and reformat it
+	tm := entry.Data["time"].(string)
+	ptime, err := time.Parse("2006-01-02 15:04:05.999999999 -0700 MST", tm)
+	if err != nil {
+		logEntry.Time = tm
+	} else {
+		logEntry.Time = ptime.Format(time.RFC3339)
+	}
+
+	err = hook.DB.Update(func(tx *bolt.Tx) error {
 		data, err := json.Marshal(logEntry)
 		if err != nil {
 			return err

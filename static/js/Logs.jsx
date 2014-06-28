@@ -3,7 +3,8 @@
 'use strict';
 
 var React = require('react'),
-    Fluxxor = require('fluxxor');
+    Fluxxor = require('fluxxor'),
+    _       = require('lodash');
 
 var FluxMixin = Fluxxor.FluxMixin(React),
     StoreWatchMixin = Fluxxor.StoreWatchMixin;
@@ -18,6 +19,9 @@ var Logs = React.createClass({
     },
 
     render: function() {
+        var sortedLogs = _.sortBy(this.state.logs, function(l) {
+            return -l.moment.unix();
+        });
         return (
             <div>
                 <h2>Logs</h2>
@@ -34,7 +38,7 @@ var Logs = React.createClass({
                     </thead>
 
                     <tbody>
-                    {this.state.logs.map(function(log, i) {
+                    {_.map(sortedLogs, function(log, i) {
                         return <LogRow key={i} log={log} />
                     })}
                     </tbody>

@@ -1,4 +1,5 @@
 var Fluxxor = require('fluxxor'),
+    moment  = require('moment'),
     request = require('superagent');
 
 var LogsStore = Fluxxor.createStore({
@@ -14,9 +15,14 @@ var LogsStore = Fluxxor.createStore({
     },
 
     onAddLog: function(payload) {
+        var now = moment();
         this.logs.push({
+            time:    now.format("YYYY-MM-DDTHH:mm:ssZ"),
             level:   payload.level,
             message: payload.message,
+            fields:  {},
+
+            'moment':  now,
         });
         this.emit('change');
     },
@@ -33,7 +39,7 @@ var LogsStore = Fluxxor.createStore({
             .set('Accept', 'application/json')
             .end(function(res) {
                 // TODO: error checking.
-                this.logs = this.logs.concat(res.body);
+                this.logs = this.logs.concat(_.map(res.body, this._extendLog));
                 if( res.body.length > 0 ) {
                     this.emit('change');
                 }
@@ -44,6 +50,15 @@ var LogsStore = Fluxxor.createStore({
         return {
             logs: this.logs,
         };
+    },
+
+    _extendLog: function(log) {
+        var ptime = moment(log.time, "YYYY-MM-DDTHH:mm:ssZ");
+        if( !ptime.isValid() ) {
+            return log;
+        }
+
+        return _.extend(_.clone(log), {"moment": ptime});
     },
 });
 

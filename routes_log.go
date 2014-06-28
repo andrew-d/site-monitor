@@ -29,4 +29,7 @@ func RouteLogsDeleteAll(c web.C, w http.ResponseWriter, r *http.Request) {
 		})
 		return nil
 	})
+
+	w.Header().Del("Content-Type")
+	w.WriteHeader(http.StatusNoContent)
 }
