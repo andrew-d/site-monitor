@@ -43,6 +43,11 @@ var ItemsStore = Fluxxor.createStore({
 
     onMarkItemRead: function(id) {
         // TODO: talk to server
+        var item = _.find(this.items, {'id': id});
+        if( item ) {
+            item.seen = true;
+            this.emit('change');
+        }
     },
 
     onRefreshItem: function(id) {

@@ -1,6 +1,6 @@
 module.exports = {
     cache: true,
-    entry: "./static/js/app.jsx",
+    entry: "./static/js/App.jsx",
     output: {
         path: __dirname + "/build/js",
         filename: "bundle.js"
