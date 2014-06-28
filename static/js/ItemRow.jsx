@@ -3,21 +3,36 @@
 'use strict';
 
 var React = require('react'),
-    ActionButton = require('./ActionButton.jsx');
+    Fluxxor = require('fluxxor');
+
+var FluxChildMixin = Fluxxor.FluxChildMixin(React);
+
+var ActionButton = require('./ActionButton.jsx');
 
 var ItemRow = React.createClass({
+    mixins: [FluxChildMixin],
+
     propTypes: {
         item: React.PropTypes.shape({
+            id:       React.PropTypes.number.isRequired,
             url:      React.PropTypes.string.isRequired,
             selector: React.PropTypes.string.isRequired,
             schedule: React.PropTypes.string.isRequired,
+            seen:     React.PropTypes.bool.isRequired,
         }),
     },
 
     render: function() {
+        var label;
+        if( this.props.item.seen ) {
+            label = <span className="label label-default">Seen</span>;
+        } else {
+            label = <span className="label label-primary">Changed</span>;
+        }
+
         return (
             <tr>
-                <td>Label</td>
+                <td>{label}</td>
                 <td>{this.props.item.url}</td>
                 <td>{this.props.item.selector}</td>
                 <td>{this.props.item.schedule}</td>

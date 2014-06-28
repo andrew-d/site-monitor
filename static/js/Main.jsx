@@ -1,7 +1,8 @@
 /** @jsx React.DOM */
 
-var React = require('react'),
-    Fluxxor = require('fluxxor');
+var React   = require('react'),
+    Fluxxor = require('fluxxor'),
+    _       = require('lodash');
 
 var FluxMixin = Fluxxor.FluxMixin(React),
     FluxChildMixin = Fluxxor.FluxChildMixin(React),
@@ -18,6 +19,11 @@ var Main = React.createClass({
     },
 
     render: function() {
+        var sortedItems = _.sortBy(this.state.items, 'seen');
+        var itemRows = _.map(this.state.items, function(item, i) {
+            return <ItemRow key={i} item={item} />
+        });
+
         return (
             <div>
                 <h2>Main</h2>
@@ -35,9 +41,7 @@ var Main = React.createClass({
                         </tr>
                     </thead>
                     <tbody>
-                    {this.state.items.map(function(item, i) {
-                        return <ItemRow key={i} item={item} />
-                    })}
+                        {itemRows}
                     </tbody>
                 </table>
 
