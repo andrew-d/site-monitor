@@ -20,7 +20,7 @@ var Main = React.createClass({
 
     render: function() {
         var sortedItems = _.sortBy(this.state.items, 'seen');
-        var itemRows = _.map(this.state.items, function(item, i) {
+        var itemRows = _.map(sortedItems, function(item, i) {
             return <ItemRow key={i} item={item} />
         });
 
