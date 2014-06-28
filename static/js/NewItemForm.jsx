@@ -59,13 +59,17 @@ var NewItemForm = React.createClass({
         );
     },
 
-    onAdd: function() {
+    onAdd: function(e) {
+        e.preventDefault();
+        e.stopPropagation();
         this.getFlux().actions.addItem(this.state.url,
                                        this.state.selector,
                                        this.state.schedule);
     },
 
-    onClear: function() {
+    onClear: function(e) {
+        e.preventDefault();
+        e.stopPropagation();
         this.setState({
             url:      '',
             selector: '',
