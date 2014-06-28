@@ -213,14 +213,25 @@ func main() {
 		mux.Get("/"+asset.Path, ServeAsset(asset.Path, asset.Mime))
 	}
 
-	mux.Get("/api/checks", RouteChecksGetAll)
-	mux.Post("/api/checks", RouteChecksNew)
-	mux.Patch("/api/checks/:id", RouteChecksModify)
-	mux.Delete("/api/checks/:id", RouteChecksDelete)
-	mux.Post("/api/checks/:id/update", RouteChecksUpdateOne)
-	mux.Get("/api/stats", RouteStatsGetAll)
-	mux.Get("/api/logs", RouteLogsGetAll)
-	mux.Delete("/api/logs", RouteLogsDeleteAll)
+	api := web.New()
+	api.Use(func(h http.Handler) http.Handler {
+		handler := func(w http.ResponseWriter, r *http.Request) {
+			w.Header().Set("Content-Type", "application/json")
+			h.ServeHTTP(w, r)
+		}
+		return http.HandlerFunc(handler)
+	})
+	api.Get("/api/checks", RouteChecksGetAll)
+	api.Post("/api/checks", RouteChecksNew)
+	api.Patch("/api/checks/:id", RouteChecksModify)
+	api.Delete("/api/checks/:id", RouteChecksDelete)
+	api.Post("/api/checks/:id/update", RouteChecksUpdateOne)
+	api.Get("/api/stats", RouteStatsGetAll)
+	api.Get("/api/logs", RouteLogsGetAll)
+	api.Delete("/api/logs", RouteLogsDeleteAll)
+
+	// Mount the API mux on the main one.
+	mux.Handle("/api/*", api)
 
 	// We re-create what Goji does to serve here.
 	http.Handle("/", mux)
