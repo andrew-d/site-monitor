@@ -27,19 +27,17 @@ var LogsStore = Fluxxor.createStore({
     },
 
     onRefreshLogs: function() {
-        var self = this;
-
         request
             .get('/api/logs')
             .type('json')
             .set('Accept', 'application/json')
             .end(function(res) {
                 // TODO: error checking.
-                self.logs.concat(res.body);
+                this.logs = this.logs.concat(res.body);
                 if( res.body.length > 0 ) {
-                    self.emit('change');
+                    this.emit('change');
                 }
-            });
+            }.bind(this));
     },
 
     getState: function() {
