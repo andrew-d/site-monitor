@@ -3,19 +3,15 @@ package main
 import (
 	"encoding/json"
 	"fmt"
-	"net/http"
 	"time"
 
 	"github.com/Sirupsen/logrus"
 	"github.com/boltdb/bolt"
+	"github.com/gocraft/web"
+	"github.com/joeshaw/envdecode"
 	"github.com/robfig/cron"
-	"github.com/zenazn/goji/bind"
-	"github.com/zenazn/goji/graceful"
-	"github.com/zenazn/goji/web"
-	"github.com/zenazn/goji/web/middleware"
+	"github.com/stretchr/graceful"
 )
-
-var _ = fmt.Printf
 
 var (
 	UrlsBucket = []byte("urls")
@@ -24,18 +20,34 @@ var (
 	log = logrus.New()
 )
 
-func ServeAsset(name, mime string) func(w http.ResponseWriter, r *http.Request) {
+type GlobalContext struct {
+	RequestID string
+}
+
+func ServeAsset(name, mime string) func(w web.ResponseWriter, r *web.Request) {
 	// Assert that the asset exists.
 	_, err := Asset(name)
 	if err != nil {
 		panic(fmt.Sprintf("asset named '%s' does not exist", name))
 	}
 
-	return func(w http.ResponseWriter, r *http.Request) {
+	return func(w web.ResponseWriter, r *web.Request) {
 		asset, _ := Asset(name)
 		w.Header().Set("Content-Type", mime)
 		w.Write(asset)
 	}
+}
+
+type ApiContext struct {
+	*GlobalContext
+
+	db   *bolt.DB
+	cron *cron.Cron
+}
+
+func (ctx *ApiContext) ContentTypeMiddleware(w web.ResponseWriter, r *web.Request, next web.NextMiddlewareFunc) {
+	w.Header().Set("Content-Type", "application/json")
+	next(w, r)
 }
 
 func TryUpdate(db *bolt.DB, id uint64) {
@@ -139,12 +151,25 @@ func (hook *ErrorsHook) Levels() []logrus.Level {
 	}
 }
 
+type Config struct {
+	Hostname string `env:"HOST,default=localhost"`
+	Port     string `env:"PORT,default=8000"`
+	DB       string `env:"DATABASE,default=./monitor.db"`
+}
+
 func main() {
-	dbPath := "./monitor.db"
-	db, err := bolt.Open(dbPath, 0666)
+	config := Config{}
+	err := envdecode.Decode(&config)
 	if err != nil {
 		log.WithFields(logrus.Fields{
-			"path": dbPath,
+			"err": err,
+		}).Fatal("configuration error")
+	}
+
+	db, err := bolt.Open(config.DB, 0666)
+	if err != nil {
+		log.WithFields(logrus.Fields{
+			"path": config.DB,
 			"err":  err,
 		}).Fatal("error opening db")
 	}
@@ -182,12 +207,8 @@ func main() {
 		// Trigger the update now...
 		go v.Update(db)
 
-		// ... and add a cron task for later.  Note that we pull out the ID
-		// into a new variable so that we don't keep the entire Check structure
-		// from being garbage collected.
-		id := v.ID
 		c.AddFunc(v.Schedule, func() {
-			TryUpdate(db, id)
+			TryUpdate(db, v.ID)
 		})
 	}
 
@@ -195,16 +216,12 @@ func main() {
 	c.Start()
 	defer c.Stop()
 
-	mux := web.New()
+	router := web.New(GlobalContext{})
+	router.
+		Middleware((*GlobalContext).LogMiddleware).
+		Middleware((*GlobalContext).RequestIdMiddleware)
 
-	mux.Use(middleware.RequestID)
-	mux.Use(LoggerMiddleware)
-	mux.Use(RecovererMiddleware)
-	mux.Use(middleware.AutomaticOptions)
-	mux.Use(DbInjectMiddleware(db))
-	mux.Use(CronInjectMiddleware(c))
-
-	mux.Get("/", ServeAsset("index.html", "text/html"))
+	router.Get("/", ServeAsset("index.html", "text/html"))
 
 	// TODO: serve map file in debug mode
 	assets := []struct {
@@ -219,40 +236,24 @@ func main() {
 		{"fonts/glyphicons-halflings-regular.ttf", "application/x-font-ttf"},
 	}
 	for _, asset := range assets {
-		mux.Get("/"+asset.Path, ServeAsset(asset.Path, asset.Mime))
+		router.Get("/"+asset.Path, ServeAsset(asset.Path, asset.Mime))
 	}
 
-	api := web.New()
-	api.Use(func(h http.Handler) http.Handler {
-		handler := func(w http.ResponseWriter, r *http.Request) {
-			w.Header().Set("Content-Type", "application/json")
-			h.ServeHTTP(w, r)
-		}
-		return http.HandlerFunc(handler)
+	apiRouter := router.Subrouter(ApiContext{}, "/api")
+	apiRouter.
+		Middleware((*ApiContext).ContentTypeMiddleware).
+		Middleware(func(ctx *ApiContext, w web.ResponseWriter, r *web.Request, next web.NextMiddlewareFunc) {
+		ctx.db = db
+		ctx.cron = c
+		next(w, r)
 	})
-	api.Get("/api/checks", RouteChecksGetAll)
-	api.Post("/api/checks", RouteChecksNew)
-	api.Patch("/api/checks/:id", RouteChecksModify)
-	api.Delete("/api/checks/:id", RouteChecksDelete)
-	api.Post("/api/checks/:id/update", RouteChecksUpdateOne)
-	api.Get("/api/stats", RouteStatsGetAll)
-	api.Get("/api/logs", RouteLogsGetAll)
-	api.Delete("/api/logs", RouteLogsDeleteAll)
 
-	// Mount the API mux on the main one.
-	mux.Handle("/api/*", api)
+	RegisterCheckRoutes(apiRouter)
+	RegisterLogRoutes(apiRouter)
+	RegisterStatsRoutes(apiRouter)
 
-	// We re-create what Goji does to serve here.
-	http.Handle("/", mux)
-	listener := bind.Default()
-	log.Println("starting server on", listener.Addr())
-	bind.Ready()
-
-	err = graceful.Serve(listener, http.DefaultServeMux)
-	if err != nil {
-		// TODO: what?
-	}
-	graceful.Wait()
-
+	addr := fmt.Sprintf("%s:%s", config.Hostname, config.Port)
+	log.Printf("Starting server on %s", addr)
+	graceful.Run(addr, 10*time.Second, router)
 	log.Info("Finished")
 }

@@ -5,23 +5,21 @@ import (
 	"net/http"
 
 	"github.com/boltdb/bolt"
-	"github.com/zenazn/goji/web"
+	"github.com/gocraft/web"
 )
 
-func RouteLogsGetAll(c web.C, w http.ResponseWriter, r *http.Request) {
-	db := c.Env["db"].(*bolt.DB)
+type LogsContext struct {
+	*ApiContext
+}
 
-	// Fetch a list of all items.
+func (ctx *LogsContext) GetAll(w web.ResponseWriter, r *web.Request) {
 	items := []*ErrorLog{}
-	GetAllLogs(db, &items)
-
+	GetAllLogs(ctx.db, &items)
 	json.NewEncoder(w).Encode(items)
 }
 
-func RouteLogsDeleteAll(c web.C, w http.ResponseWriter, r *http.Request) {
-	db := c.Env["db"].(*bolt.DB)
-
-	db.Update(func(tx *bolt.Tx) error {
+func (ctx *LogsContext) DeleteAll(w web.ResponseWriter, r *web.Request) {
+	ctx.db.Update(func(tx *bolt.Tx) error {
 		b := tx.Bucket(LogsBucket)
 		b.ForEach(func(k, v []byte) error {
 			b.Delete(k)
@@ -32,4 +30,10 @@ func RouteLogsDeleteAll(c web.C, w http.ResponseWriter, r *http.Request) {
 
 	w.Header().Del("Content-Type")
 	w.WriteHeader(http.StatusNoContent)
+}
+
+func RegisterLogRoutes(router *web.Router) {
+	logsRouter := router.Subrouter(LogsContext{}, "/logs")
+	logsRouter.Get("", (*LogsContext).GetAll)
+	logsRouter.Delete("", (*LogsContext).DeleteAll)
 }

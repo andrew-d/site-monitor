@@ -28,21 +28,21 @@
 			"Rev": "0329b03f58799ab8e51e7567f836c80c24258a16"
 		},
 		{
+			"ImportPath": "github.com/gocraft/web",
+			"Rev": "91f6740db03bb0a8a1c7231e3464124057501a92"
+		},
+		{
+			"ImportPath": "github.com/joeshaw/envdecode",
+			"Rev": "add9c24bfa27ae50da536bb62bb90d57974e0b43"
+		},
+		{
 			"ImportPath": "github.com/robfig/cron",
 			"Comment": "v1-3-gb024fc5",
 			"Rev": "b024fc5ea0e34bc3f83d9941c8d60b0622bfaca4"
 		},
 		{
-			"ImportPath": "github.com/zenazn/goji/bind",
-			"Rev": "f70d2a33c1813a235a0f5f84bb5c2ce80aef57c3"
-		},
-		{
-			"ImportPath": "github.com/zenazn/goji/graceful",
-			"Rev": "f70d2a33c1813a235a0f5f84bb5c2ce80aef57c3"
-		},
-		{
-			"ImportPath": "github.com/zenazn/goji/web",
-			"Rev": "f70d2a33c1813a235a0f5f84bb5c2ce80aef57c3"
+			"ImportPath": "github.com/stretchr/graceful",
+			"Rev": "68d4bcc41bfe16abf9cde7435441b21a35750d55"
 		}
 	]
 }

@@ -2,21 +2,28 @@ package main
 
 import (
 	"encoding/json"
-	"net/http"
 
 	"github.com/boltdb/bolt"
-	"github.com/zenazn/goji/web"
+	"github.com/gocraft/web"
 )
 
-func RouteStatsGetAll(c web.C, w http.ResponseWriter, r *http.Request) {
-	context := map[string]interface{}{}
-	db := c.Env["db"].(*bolt.DB)
+type StatsContext struct {
+	*ApiContext
+}
 
-	db.View(func(tx *bolt.Tx) error {
+func (ctx *StatsContext) GetAll(w web.ResponseWriter, r *web.Request) {
+	context := map[string]interface{}{}
+
+	ctx.db.View(func(tx *bolt.Tx) error {
 		context["url-stats"] = tx.Bucket(UrlsBucket).Stats()
 		context["log-count"] = tx.Bucket(LogsBucket).Stats().KeyN
 		return nil
 	})
 
 	json.NewEncoder(w).Encode(context)
+}
+
+func RegisterStatsRoutes(router *web.Router) {
+	statsRouter := router.Subrouter(StatsContext{}, "/stats")
+	statsRouter.Get("", (*StatsContext).GetAll)
 }

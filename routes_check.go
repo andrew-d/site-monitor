@@ -8,15 +8,31 @@ import (
 
 	"github.com/Sirupsen/logrus"
 	"github.com/boltdb/bolt"
-	"github.com/robfig/cron"
-	"github.com/zenazn/goji/web"
+	"github.com/gocraft/web"
 )
 
-func RouteChecksGetAll(c web.C, w http.ResponseWriter, r *http.Request) {
-	db := c.Env["db"].(*bolt.DB)
+type ChecksContext struct {
+	*ApiContext
+	id uint64
+}
 
+func (ctx *ChecksContext) ParseIdMiddleware(w web.ResponseWriter, r *web.Request, next web.NextMiddlewareFunc) {
+	var err error
+
+	if id, ok := r.PathParams["id"]; ok {
+		ctx.id, err = strconv.ParseUint(id, 10, 64)
+		if err != nil {
+			http.Error(w, err.Error(), http.StatusBadRequest)
+			return
+		}
+	}
+
+	next(w, r)
+}
+
+func (ctx *ChecksContext) GetAll(w web.ResponseWriter, r *web.Request) {
 	checks := []*Check{}
-	err := GetAllChecks(db, &checks)
+	err := GetAllChecks(ctx.db, &checks)
 	if err != nil {
 		http.Error(w, err.Error(), http.StatusInternalServerError)
 		return
@@ -29,41 +45,29 @@ func RouteChecksGetAll(c web.C, w http.ResponseWriter, r *http.Request) {
 	}
 }
 
-func RouteChecksNew(c web.C, w http.ResponseWriter, r *http.Request) {
-	db := c.Env["db"].(*bolt.DB)
-
-	params := struct {
-		URL      string `json:"url"`
-		Selector string `json:"selector"`
-		Schedule string `json:"schedule"`
-	}{}
-
+func (ctx *ChecksContext) Post(w web.ResponseWriter, r *web.Request) {
+	params := map[string]string{}
 	err := json.NewDecoder(r.Body).Decode(&params)
 	if err != nil {
 		http.Error(w, "bad input JSON", http.StatusBadRequest)
 		return
 	}
 
-	if len(params.URL) == 0 {
-		http.Error(w, "missing URL parameter", http.StatusBadRequest)
-		return
-	}
-	if len(params.Selector) == 0 {
-		http.Error(w, "missing Selector parameter", http.StatusBadRequest)
-		return
-	}
-	if len(params.Schedule) == 0 {
-		http.Error(w, "missing Schedule parameter", http.StatusBadRequest)
-		return
+	for _, key := range []string{"url", "selector", "schedule"} {
+		val, ok := params[key]
+		if !ok || len(val) == 0 {
+			http.Error(w, fmt.Sprintf("missing '%s' parameter", key), http.StatusBadRequest)
+			return
+		}
 	}
 
 	check := Check{
-		URL:      params.URL,
-		Selector: params.Selector,
-		Schedule: params.Schedule,
+		URL:      params["url"],
+		Selector: params["selector"],
+		Schedule: params["schedule"],
 	}
 
-	err = db.Update(func(tx *bolt.Tx) error {
+	err = ctx.db.Update(func(tx *bolt.Tx) error {
 		data, err := json.Marshal(check)
 		if err != nil {
 			return err
@@ -93,39 +97,31 @@ func RouteChecksNew(c web.C, w http.ResponseWriter, r *http.Request) {
 	}
 
 	// If we succeeded, we update right now...
-	check.Update(db)
+	check.Update(ctx.db)
 
 	// ... and add a new Cron callback
-	cr := c.Env["cron"].(*cron.Cron)
-	cr.AddFunc(check.Schedule, func() {
-		TryUpdate(db, check.ID)
+	ctx.cron.AddFunc(check.Schedule, func() {
+		TryUpdate(ctx.db, check.ID)
 	})
 
 	w.WriteHeader(http.StatusCreated)
 	json.NewEncoder(w).Encode(check)
 }
 
-func RouteChecksModify(c web.C, w http.ResponseWriter, r *http.Request) {
-	db := c.Env["db"].(*bolt.DB)
+func (ctx *ChecksContext) Patch(w web.ResponseWriter, r *web.Request) {
+	bodyJson := map[string]interface{}{}
 
-	id, err := strconv.ParseUint(c.URLParams["id"], 10, 64)
-	if err != nil {
-		http.Error(w, err.Error(), http.StatusBadRequest)
-		return
-	}
-
-	bodyJson := make(map[string]interface{})
-	err = json.NewDecoder(r.Body).Decode(&bodyJson)
+	err := json.NewDecoder(r.Body).Decode(&bodyJson)
 	if err != nil {
 		http.Error(w, "bad input JSON", http.StatusBadRequest)
 		return
 	}
 
 	check := &Check{}
-	err = db.View(func(tx *bolt.Tx) error {
-		data := tx.Bucket(UrlsBucket).Get(KeyFor(id))
+	err = ctx.db.View(func(tx *bolt.Tx) error {
+		data := tx.Bucket(UrlsBucket).Get(KeyFor(ctx.id))
 		if data == nil {
-			return fmt.Errorf("no such check: %d", id)
+			return fmt.Errorf("no such check: %d", ctx.id)
 		}
 
 		if err := json.Unmarshal(data, check); err != nil {
@@ -135,7 +131,7 @@ func RouteChecksModify(c web.C, w http.ResponseWriter, r *http.Request) {
 			return err
 		}
 
-		check.ID = id
+		check.ID = ctx.id
 		return nil
 	})
 
@@ -170,7 +166,7 @@ func RouteChecksModify(c web.C, w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	err = db.Update(func(tx *bolt.Tx) error {
+	err = ctx.db.Update(func(tx *bolt.Tx) error {
 		data, err := json.Marshal(check)
 		if err != nil {
 			return err
@@ -191,20 +187,12 @@ func RouteChecksModify(c web.C, w http.ResponseWriter, r *http.Request) {
 	json.NewEncoder(w).Encode(check)
 }
 
-func RouteChecksUpdateOne(c web.C, w http.ResponseWriter, r *http.Request) {
-	db := c.Env["db"].(*bolt.DB)
-
-	id, err := strconv.ParseUint(c.URLParams["id"], 10, 64)
-	if err != nil {
-		http.Error(w, err.Error(), http.StatusBadRequest)
-		return
-	}
-
+func (ctx *ChecksContext) UpdateOne(w web.ResponseWriter, r *web.Request) {
 	check := &Check{}
-	err = db.View(func(tx *bolt.Tx) error {
-		data := tx.Bucket(UrlsBucket).Get(KeyFor(id))
+	err := ctx.db.View(func(tx *bolt.Tx) error {
+		data := tx.Bucket(UrlsBucket).Get(KeyFor(ctx.id))
 		if data == nil {
-			return fmt.Errorf("no such check: %d", id)
+			return fmt.Errorf("no such check: %d", ctx.id)
 		}
 
 		if err := json.Unmarshal(data, check); err != nil {
@@ -214,7 +202,7 @@ func RouteChecksUpdateOne(c web.C, w http.ResponseWriter, r *http.Request) {
 			return err
 		}
 
-		check.ID = id
+		check.ID = ctx.id
 		return nil
 	})
 
@@ -223,23 +211,15 @@ func RouteChecksUpdateOne(c web.C, w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	check.Update(db)
+	check.Update(ctx.db)
 
 	// TODO: http status
 	json.NewEncoder(w).Encode(check)
 }
 
-func RouteChecksDelete(c web.C, w http.ResponseWriter, r *http.Request) {
-	db := c.Env["db"].(*bolt.DB)
-
-	id, err := strconv.ParseUint(c.URLParams["id"], 10, 64)
-	if err != nil {
-		http.Error(w, err.Error(), http.StatusBadRequest)
-		return
-	}
-
-	err = db.Update(func(tx *bolt.Tx) error {
-		return tx.Bucket(UrlsBucket).Delete(KeyFor(id))
+func (ctx *ChecksContext) Delete(w web.ResponseWriter, r *web.Request) {
+	err := ctx.db.Update(func(tx *bolt.Tx) error {
+		return tx.Bucket(UrlsBucket).Delete(KeyFor(ctx.id))
 	})
 	if err != nil {
 		http.Error(w, err.Error(), http.StatusInternalServerError)
@@ -248,4 +228,15 @@ func RouteChecksDelete(c web.C, w http.ResponseWriter, r *http.Request) {
 
 	w.Header().Del("Content-Type")
 	w.WriteHeader(http.StatusNoContent)
+}
+
+func RegisterCheckRoutes(router *web.Router) {
+	checksRouter := router.Subrouter(ChecksContext{}, "/checks")
+	checksRouter.Middleware((*ChecksContext).ParseIdMiddleware)
+
+	checksRouter.Get("", (*ChecksContext).GetAll)
+	checksRouter.Post("", (*ChecksContext).Post)
+	checksRouter.Patch("/:id", (*ChecksContext).Patch)
+	checksRouter.Delete("/:id", (*ChecksContext).Delete)
+	checksRouter.Post("/:id/update", (*ChecksContext).UpdateOne)
 }
