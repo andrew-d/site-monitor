@@ -9,6 +9,7 @@ import (
 	"runtime"
 	"strings"
 	"sync/atomic"
+	"time"
 
 	"github.com/Sirupsen/logrus"
 	"github.com/gocraft/web"
@@ -36,8 +37,48 @@ func init() {
 	prefix = fmt.Sprintf("%s/%s", hostname, rnd[0:10])
 }
 
+func DurationToString(d time.Duration) string {
+	duration := d.Nanoseconds()
+
+	var units string
+	switch {
+	case d > 1*1000*1000*1000:
+		units = "s"
+		duration /= (1000 * 1000 * 1000)
+
+	case d > 2*1000*1000:
+		// Note: we picked 2 here so we get more granularity in the
+		// microsecond range
+		units = "ms"
+		duration /= (1000 * 1000)
+
+	case d > 1*1000:
+		units = "μs"
+		duration /= 1000
+
+	default:
+		units = "ns"
+	}
+
+	return fmt.Sprintf("%d%s", duration, units)
+}
+
 func (ctx *GlobalContext) LogMiddleware(w web.ResponseWriter, r *web.Request, next web.NextMiddlewareFunc) {
+	log.WithFields(logrus.Fields{
+		"url": r.URL.Path,
+		"id":  ctx.RequestID,
+	}).Infof("Request started")
+
+	start := time.Now()
 	next(w, r)
+	duration := time.Now().Sub(start)
+
+	log.WithFields(logrus.Fields{
+		"url":      r.URL.Path,
+		"duration": duration.Nanoseconds(),
+		"status":   w.StatusCode(),
+		"id":       ctx.RequestID,
+	}).Infof("Request finished in %s", DurationToString(duration))
 }
 
 func (ctx *GlobalContext) RequestIdMiddleware(w web.ResponseWriter, r *web.Request, next web.NextMiddlewareFunc) {
