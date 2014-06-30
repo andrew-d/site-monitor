@@ -24,12 +24,6 @@ type Check struct {
 	LastChecked time.Time `json:"last_checked"`
 	LastHash    string    `json:"last_hash"`
 	SeenChange  bool      `json:"seen"`
-
-	// The last-checked date, as a string.
-	LastCheckedPretty string `json:"-"`
-
-	// The first 8 characters of the hash
-	ShortHash string `json:"-"`
 }
 
 func KeyFor(id interface{}) (key []byte) {
@@ -48,21 +42,6 @@ func KeyFor(id interface{}) (key []byte) {
 	return
 }
 
-func (c *Check) PrepareForDisplay() {
-	if c.LastChecked.IsZero() {
-		c.LastCheckedPretty = "never"
-	} else {
-		c.LastCheckedPretty = c.LastChecked.Format(
-			"Jan 2, 2006 at 3:04pm (MST)")
-	}
-
-	if len(c.LastHash) > 0 {
-		c.ShortHash = c.LastHash[0:8]
-	} else {
-		c.ShortHash = "none"
-	}
-}
-
 func GetAllChecks(db *bolt.DB, output *[]*Check) error {
 	return db.View(func(tx *bolt.Tx) error {
 		b := tx.Bucket(UrlsBucket)
@@ -76,7 +55,6 @@ func GetAllChecks(db *bolt.DB, output *[]*Check) error {
 			}
 
 			check.ID = binary.LittleEndian.Uint64(k)
-			check.PrepareForDisplay()
 
 			*output = append(*output, check)
 			return nil
