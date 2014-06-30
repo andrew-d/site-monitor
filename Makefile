@@ -30,6 +30,8 @@ STATIC_FILES := static/js/lib/bootstrap.min.js \
 BUILD_FILES  := $(patsubst static/%,build/%,$(STATIC_FILES))
 RESOURCES    := build/index.html build/js/bundle.js $(BUILD_FILES)
 
+WEBPACK_BIN  := ./node_modules/webpack/bin/webpack.js
+
 # Disable all built-in rules.
 .SUFFIXES:
 
@@ -58,7 +60,8 @@ resources.go: $(RESOURCES)
 
 build/js/bundle.js: $(JS_FILES)
 	@printf "  $(GREEN)WEBPACK$(NOCOLOR)  $@\n"
-	$(CMD_PREFIX)$(NODE_ENV) webpack --progress --colors $(WEBPACK_FLAGS) $(NULL_REDIR)
+	$(CMD_PREFIX)$(NODE_ENV) node $(WEBPACK_BIN) \
+		--progress --colors $(WEBPACK_FLAGS) $(NULL_REDIR)
 
 build/index.html: static/index.html
 	@printf "  $(GREEN)CP$(NOCOLOR)       $< ==> $@\n"
