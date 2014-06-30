@@ -6,9 +6,11 @@ import (
 	"fmt"
 	"net/http"
 	"os"
+	"runtime"
 	"strings"
 	"sync/atomic"
 
+	"github.com/Sirupsen/logrus"
 	"github.com/gocraft/web"
 )
 
@@ -44,10 +46,20 @@ func (ctx *GlobalContext) RequestIdMiddleware(w web.ResponseWriter, r *web.Reque
 	next(w, r)
 }
 
-func (ctx *GlobalContext) RecovererMiddleware(w web.ResponseWriter, r *web.Request, next web.NextMiddlewareFunc) {
+func (ctx *GlobalContext) RecoverMiddleware(w web.ResponseWriter, r *web.Request, next web.NextMiddlewareFunc) {
 	defer func() {
 		if err := recover(); err != nil {
-			// TODO: what to do here?
+			// Get a stacktrace.
+			buf := make([]byte, 1<<16)
+			amt := runtime.Stack(buf, false)
+			stack := "\n" + string(buf[:amt])
+
+			log.WithFields(logrus.Fields{
+				"err":        err,
+				"requestId":  ctx.RequestID,
+				"stacktrace": stack,
+			}).Error("recovered from panic")
+
 			http.Error(w, http.StatusText(500), 500)
 		}
 	}()

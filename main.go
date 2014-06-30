@@ -218,8 +218,9 @@ func main() {
 
 	router := web.New(GlobalContext{})
 	router.
+		Middleware((*GlobalContext).RequestIdMiddleware).
 		Middleware((*GlobalContext).LogMiddleware).
-		Middleware((*GlobalContext).RequestIdMiddleware)
+		Middleware((*GlobalContext).RecoverMiddleware)
 
 	router.Get("/", ServeAsset("index.html", "text/html"))
 
