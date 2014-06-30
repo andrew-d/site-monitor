@@ -19,9 +19,7 @@ var Logs = React.createClass({
     },
 
     render: function() {
-        var sortedLogs = _.sortBy(this.state.logs, function(l) {
-            return -l.moment.unix();
-        });
+        var sortedLogs = _.sortBy(this.state.logs, 'time');
         return (
             <div>
                 <h2>Logs</h2>

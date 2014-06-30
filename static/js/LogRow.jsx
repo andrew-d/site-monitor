@@ -3,6 +3,7 @@
 'use strict';
 
 var React  = require('react'),
+    moment = require('moment'),
     _      = require('lodash');
 
 var LogRow = React.createClass({
@@ -12,24 +13,23 @@ var LogRow = React.createClass({
             level:   React.PropTypes.string.isRequired,
             message: React.PropTypes.string.isRequired,
             fields:  React.PropTypes.object.isRequired,
-
-            moment:  React.PropTypes.object,
         }),
     },
 
     render: function() {
         var time;
 
-        if( _.has(this.props.log, 'moment') ) {
+        var ptime = moment(this.props.log.time, "YYYY-MM-DDTHH:mm:ssZ");
+        if( !ptime.isValid() ) {
             time = (
-                <span title={this.props.log.time}>
-                    {this.props.log.moment.fromNow()}
+                <span title="(invalid format)">
+                    {this.props.log.time}
                 </span>
             );
         } else {
             time = (
-                <span title="(invalid format)">
-                    {this.props.log.time}
+                <span title={this.props.log.time}>
+                    {ptime.fromNow()}
                 </span>
             );
         }
