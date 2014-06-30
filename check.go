@@ -5,6 +5,7 @@ import (
 	"encoding/binary"
 	"encoding/hex"
 	"encoding/json"
+	"fmt"
 	"io"
 	"net/http"
 	"time"
@@ -80,6 +81,25 @@ func GetAllChecks(db *bolt.DB, output *[]*Check) error {
 			*output = append(*output, check)
 			return nil
 		})
+		return nil
+	})
+}
+
+func GetOneCheck(db *bolt.DB, id uint64, output *Check) error {
+	return db.View(func(tx *bolt.Tx) error {
+		data := tx.Bucket(UrlsBucket).Get(KeyFor(id))
+		if data == nil {
+			return fmt.Errorf("no such check: %d", id)
+		}
+
+		if err := json.Unmarshal(data, output); err != nil {
+			log.WithFields(logrus.Fields{
+				"err": err,
+			}).Error("error unmarshaling json")
+			return err
+		}
+
+		output.ID = id
 		return nil
 	})
 }

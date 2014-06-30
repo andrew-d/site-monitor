@@ -118,23 +118,7 @@ func (ctx *ChecksContext) Patch(w web.ResponseWriter, r *web.Request) {
 	}
 
 	check := &Check{}
-	err = ctx.db.View(func(tx *bolt.Tx) error {
-		data := tx.Bucket(UrlsBucket).Get(KeyFor(ctx.id))
-		if data == nil {
-			return fmt.Errorf("no such check: %d", ctx.id)
-		}
-
-		if err := json.Unmarshal(data, check); err != nil {
-			log.WithFields(logrus.Fields{
-				"err": err,
-			}).Error("error unmarshaling json")
-			return err
-		}
-
-		check.ID = ctx.id
-		return nil
-	})
-
+	err = GetOneCheck(ctx.db, ctx.id, check)
 	if err != nil {
 		http.Error(w, err.Error(), http.StatusBadRequest)
 		return
@@ -189,23 +173,7 @@ func (ctx *ChecksContext) Patch(w web.ResponseWriter, r *web.Request) {
 
 func (ctx *ChecksContext) UpdateOne(w web.ResponseWriter, r *web.Request) {
 	check := &Check{}
-	err := ctx.db.View(func(tx *bolt.Tx) error {
-		data := tx.Bucket(UrlsBucket).Get(KeyFor(ctx.id))
-		if data == nil {
-			return fmt.Errorf("no such check: %d", ctx.id)
-		}
-
-		if err := json.Unmarshal(data, check); err != nil {
-			log.WithFields(logrus.Fields{
-				"err": err,
-			}).Error("error unmarshaling json")
-			return err
-		}
-
-		check.ID = ctx.id
-		return nil
-	})
-
+	err := GetOneCheck(ctx.db, ctx.id, check)
 	if err != nil {
 		http.Error(w, err.Error(), http.StatusBadRequest)
 		return
