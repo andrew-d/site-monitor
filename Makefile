@@ -14,8 +14,12 @@ TYPE ?= debug
 # to a minimum.  In debug mode, we also always load the assets from disk.
 ifeq ($(TYPE),release)
 export BINDATA_FLAGS := "-ignore=.*\\.map"
+export WEBPACK_FLAGS := --optimize-minimize --optimize-dedupe
+export NODE_ENV      := NODE_ENV=production
 else
 export BINDATA_FLAGS := -debug
+export WEBPACK_FLAGS :=
+export NODE_ENV      :=
 endif
 
 JS_FILES     := $(shell find static/js/ -name '*.js' -or -name '*.jsx')
@@ -54,7 +58,7 @@ resources.go: $(RESOURCES)
 
 build/js/bundle.js: $(JS_FILES)
 	@printf "  $(GREEN)WEBPACK$(NOCOLOR)  $@\n"
-	$(CMD_PREFIX)webpack --progress --colors $(NULL_REDIR)
+	$(CMD_PREFIX)$(NODE_ENV) webpack --progress --colors $(WEBPACK_FLAGS) $(NULL_REDIR)
 
 build/index.html: static/index.html
 	@printf "  $(GREEN)CP$(NOCOLOR)       $< ==> $@\n"
