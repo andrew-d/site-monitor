@@ -32,6 +32,10 @@
 			"Rev": "91f6740db03bb0a8a1c7231e3464124057501a92"
 		},
 		{
+			"ImportPath": "github.com/gorilla/websocket",
+			"Rev": "0f32413e5e853a1244bc7be242b9afb625dc0aee"
+		},
+		{
 			"ImportPath": "github.com/joeshaw/envdecode",
 			"Rev": "add9c24bfa27ae50da536bb62bb90d57974e0b43"
 		},
@@ -43,6 +47,10 @@
 		{
 			"ImportPath": "github.com/stretchr/graceful",
 			"Rev": "68d4bcc41bfe16abf9cde7435441b21a35750d55"
+		},
+		{
+			"ImportPath": "github.com/stretchr/testify/assert",
+			"Rev": "410219ae829b24af99a4d48a79858f23d0be42ee"
 		}
 	]
 }
