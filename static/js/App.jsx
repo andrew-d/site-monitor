@@ -18,6 +18,20 @@ var Navbar = require('./Navbar.jsx'),
     Logs   = require('./Logs.jsx'),
     Main   = require('./Main.jsx');
 
+
+var ws = new WebSocket("ws://" + window.location.host + "/ws");
+ws.onmessage = function(e) {
+    if( e.data ) {
+        var msg = JSON.parse(e.data);
+        switch( msg.type ) {
+        case "new_log":
+            flux.actions.serverLogNotification(msg.data);
+            break;
+        }
+    }
+};
+
+
 var App = React.createClass({
     mixins: [FluxMixin, StoreWatchMixin("LogStore")],
 

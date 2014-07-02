@@ -41,8 +41,9 @@ func ServeAsset(name, mime string) func(w web.ResponseWriter, r *web.Request) {
 type ApiContext struct {
 	*GlobalContext
 
-	db   *bolt.DB
-	cron *cron.Cron
+	db      *bolt.DB
+	cron    *cron.Cron
+	updates chan interface{}
 }
 
 func (ctx *ApiContext) ContentTypeMiddleware(w web.ResponseWriter, r *web.Request, next web.NextMiddlewareFunc) {
@@ -89,7 +90,8 @@ func TryUpdate(db *bolt.DB, id uint64) {
 }
 
 type ErrorsHook struct {
-	DB *bolt.DB
+	DB      *bolt.DB
+	Updates chan interface{}
 }
 
 func (hook *ErrorsHook) Fire(entry *logrus.Entry) error {
@@ -126,6 +128,7 @@ func (hook *ErrorsHook) Fire(entry *logrus.Entry) error {
 		if err != nil {
 			return err
 		}
+		logEntry.ID = uint64(seq)
 
 		if err = b.Put(KeyFor(seq), data); err != nil {
 			return err
@@ -133,9 +136,14 @@ func (hook *ErrorsHook) Fire(entry *logrus.Entry) error {
 		return nil
 	})
 
+	hook.Updates <- map[string]interface{}{
+		"type": "new_log",
+		"data": logEntry,
+	}
+
 	if err != nil {
-		// Note: shouldn't try to send another error+ message here, since we
-		// might just recurse forever.
+		// Note: shouldn't try to send another message with severity error+ here,
+		// since we might just recurse forever.
 		log.WithFields(logrus.Fields{
 			"err": err,
 		}).Warn("failed to log error to db")
@@ -176,6 +184,7 @@ func main() {
 	defer db.Close()
 
 	c := cron.New()
+	updatesChan := make(chan interface{})
 
 	// Create collections.
 	buckets := [][]byte{UrlsBucket, LogsBucket}
@@ -192,7 +201,8 @@ func main() {
 	// Add a hook to our logger that will catch errors (and above) and will add
 	// them to our error log.
 	log.Hooks.Add(&ErrorsHook{
-		DB: db,
+		DB:      db,
+		Updates: updatesChan,
 	})
 
 	// Initialize for each of the existing URLs
@@ -246,12 +256,14 @@ func main() {
 		Middleware(func(ctx *ApiContext, w web.ResponseWriter, r *web.Request, next web.NextMiddlewareFunc) {
 		ctx.db = db
 		ctx.cron = c
+		ctx.updates = updatesChan
 		next(w, r)
 	})
 
 	RegisterCheckRoutes(apiRouter)
 	RegisterLogRoutes(apiRouter)
 	RegisterStatsRoutes(apiRouter)
+	RegisterWebsockets(router, updatesChan)
 
 	addr := fmt.Sprintf("%s:%s", config.Hostname, config.Port)
 	log.Printf("Starting server on %s", addr)

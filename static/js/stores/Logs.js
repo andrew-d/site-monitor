@@ -5,6 +5,7 @@ var Fluxxor = require('fluxxor'),
 var LogsStore = Fluxxor.createStore({
     actions: {
         'ADD_LOG': 'onAddLog',
+        'SERVER_LOG': 'onServerLog',
         'CLEAR_LOGS': 'onClearLogs',
         'REFRESH_LOGS': 'onRefreshLogs',
     },
@@ -21,6 +22,11 @@ var LogsStore = Fluxxor.createStore({
             message: payload.message,
             fields:  {},
         });
+        this.emit('change');
+    },
+
+    onServerLog: function(payload) {
+        this.logs.push(payload);
         this.emit('change');
     },
 
@@ -71,6 +77,9 @@ var actions = {
     },
     refreshLogs: function() {
         this.dispatch("REFRESH_LOGS");
+    },
+    serverLogNotification: function(logdata) {
+        this.dispatch("SERVER_LOG", logdata);
     },
 };
 
