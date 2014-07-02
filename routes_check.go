@@ -97,11 +97,11 @@ func (ctx *ChecksContext) Post(w web.ResponseWriter, r *web.Request) {
 	}
 
 	// If we succeeded, we update right now...
-	check.Update(ctx.db)
+	check.Update(ctx.db, ctx.updates)
 
 	// ... and add a new Cron callback
 	ctx.cron.AddFunc(check.Schedule, func() {
-		TryUpdate(ctx.db, check.ID)
+		TryUpdate(ctx.db, check.ID, ctx.updates)
 	})
 
 	w.WriteHeader(http.StatusCreated)
@@ -179,7 +179,7 @@ func (ctx *ChecksContext) UpdateOne(w web.ResponseWriter, r *web.Request) {
 		return
 	}
 
-	check.Update(ctx.db)
+	check.Update(ctx.db, ctx.updates)
 
 	// TODO: http status
 	json.NewEncoder(w).Encode(check)

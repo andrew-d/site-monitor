@@ -27,6 +27,9 @@ ws.onmessage = function(e) {
         case "new_log":
             flux.actions.serverLogNotification(msg.data);
             break;
+        case "updated_check":
+            flux.actions.serverItemNotification(msg.data);
+            break;
         }
     }
 };

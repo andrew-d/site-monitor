@@ -82,7 +82,7 @@ func GetOneCheck(db *bolt.DB, id uint64, output *Check) error {
 	})
 }
 
-func (c *Check) Update(db *bolt.DB) {
+func (c *Check) Update(db *bolt.DB, updates chan interface{}) {
 	log.WithFields(logrus.Fields{
 		"id":  c.ID,
 		"url": c.URL,
@@ -148,4 +148,10 @@ func (c *Check) Update(db *bolt.DB) {
 		}
 		return nil
 	})
+
+	// Broadcast this change
+	updates <- map[string]interface{}{
+		"type": "updated_check",
+		"data": c,
+	}
 }

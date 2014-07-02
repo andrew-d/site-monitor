@@ -51,7 +51,7 @@ func (ctx *ApiContext) ContentTypeMiddleware(w web.ResponseWriter, r *web.Reques
 	next(w, r)
 }
 
-func TryUpdate(db *bolt.DB, id uint64) {
+func TryUpdate(db *bolt.DB, id uint64, updates chan interface{}) {
 	// The task may have been deleted from the DB, so we try to fetch it first
 	check := &Check{}
 	found := false
@@ -86,7 +86,7 @@ func TryUpdate(db *bolt.DB, id uint64) {
 	}
 
 	// Got a check.  Trigger an update.
-	check.Update(db)
+	check.Update(db, updates)
 }
 
 type ErrorsHook struct {
@@ -214,11 +214,12 @@ func main() {
 	}
 
 	for _, v := range items {
-		// Trigger the update now...
-		go v.Update(db)
+		// Trigger the update now (nil channel since we won't have any listening
+		// clients at this point).
+		go v.Update(db, nil)
 
 		c.AddFunc(v.Schedule, func() {
-			TryUpdate(db, v.ID)
+			TryUpdate(db, v.ID, updatesChan)
 		})
 	}
 

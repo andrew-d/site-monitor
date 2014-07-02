@@ -5,6 +5,7 @@ var Fluxxor = require('fluxxor'),
 var ItemsStore = Fluxxor.createStore({
     actions: {
         'ADD_ITEM': 'onAddItem',
+        "SERVER_ITEM": "onServerItem",
         'REFRESH_ITEMS': 'onRefreshItems',
         "DELETE_ITEM": 'onDeleteItem',
         "MARK_ITEM_READ": 'onMarkItemRead',
@@ -31,6 +32,29 @@ var ItemsStore = Fluxxor.createStore({
                 this.items.push(res.body);
                 this.emit('change');
             }.bind(this));
+    },
+
+    onServerItem: function(payload) {
+        var oldItem = _.find(this.items, {'id': payload.id});
+        if( !oldItem ) {
+            this.items.push(payload);
+            this.emit('change');
+            return;
+        }
+
+        // Merge the two objects, keeping track whether they changed or not.
+        var changed = false;
+        _.each(_.keys(payload), function(key) {
+            if( oldItem[key] !== payload[key] ) {
+                changed = true;
+            }
+
+            oldItem[key] = payload[key];
+        });
+
+        if( changed ) {
+            this.emit('change');
+        }
     },
 
     onRefreshItems: function() {
@@ -121,6 +145,10 @@ var actions = {
 
     refreshItem: function(id) {
         this.dispatch("REFRESH_ITEM", id);
+    },
+
+    serverItemNotification: function(item) {
+        this.dispatch("SERVER_ITEM", item);
     },
 };
 
