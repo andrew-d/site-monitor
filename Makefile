@@ -3,7 +3,7 @@ export V = false
 export CMD_PREFIX   = @
 export NULL_REDIR = 2>/dev/null >/dev/null
 ifeq ($(V),true)
-	CMD_PREFIX   =
+	CMD_PREFIX =
 	NULL_REDIR =
 endif
 
@@ -89,6 +89,8 @@ dependencies:
 	@command -v go-bindata >/dev/null 2>&1 || { printf >&2 "go-bindata is not installed, exiting...\n"; exit 1; }
 	@command -v webpack    >/dev/null 2>&1 || { printf >&2 "webpack is not installed, exiting...\n"; exit 1; }
 	@command -v godep      >/dev/null 2>&1 || { printf >&2 "godep is not installed, exiting...\n"; exit 1; }
+	@command -v node       >/dev/null 2>&1 || { printf >&2 "node.js is not installed, exiting...\n"; exit 1; }
+	@test -d node_modules/webpack    || { printf >&2 "npm dependencies not satisfied, exiting...\n"; exit 1; }
 	@# Since webpack doesn't seem to exit with an error if this isn't present...
 	@test -d node_modules/jsx-loader || { printf >&2 "npm dependencies not satisfied, exiting...\n"; exit 1; }
 
