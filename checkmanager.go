@@ -21,16 +21,18 @@ type CheckManager struct {
 
 	newCheck    chan newCheckMsg
 	removeCheck chan uint64
+	resp        chan error
 	quit        chan struct{}
 }
 
-func NewCheckManager(db *bolt.DB, cron *cron.Cron) (ret *CheckManager) {
+func NewCheckManager(db *bolt.DB) (ret *CheckManager) {
 	ret = &CheckManager{
 		db:   db,
-		cron: cron,
+		cron: cron.New(),
 
 		newCheck:    make(chan newCheckMsg),
 		removeCheck: make(chan uint64),
+		resp:        make(chan error),
 		quit:        make(chan struct{}),
 	}
 	go ret.cronLoop()
@@ -48,10 +50,34 @@ func (m *CheckManager) cronLoop() {
 			m.cron.AddFunc(msg.schedule, func() {
 				m.RunCheck(msg.id)
 			})
+			m.resp <- nil
 
 		case id := <-m.removeCheck:
-			// TODO: implement
-			var _ = id
+			// Create a new cron instance and add all the checks to it.
+			newc := cron.New()
+			checks, err := m.GetAllChecks()
+			if err != nil {
+				m.resp <- err
+				return
+			}
+
+			for _, c := range checks {
+				// Don't add the one we're deleting
+				if c.ID == id {
+					continue
+				}
+
+				newc.AddFunc(c.Schedule, func() {
+					m.RunCheck(c.ID)
+				})
+			}
+
+			// Close / stop the old one and swap
+			m.cron.Stop()
+			m.cron = newc
+			m.cron.Start()
+
+			m.resp <- nil
 
 		case _, ok := <-m.quit:
 			if !ok {
@@ -146,7 +172,7 @@ func (m *CheckManager) AddCheck(c *Check) (err error) {
 
 	// Now, we need to add a new Cron task here
 	m.newCheck <- newCheckMsg{c.ID, c.Schedule}
-	return
+	return <-m.resp
 }
 
 func (m *CheckManager) ModifyCheck(id uint64, fields map[string]interface{}) (changed bool, err error) {
@@ -189,7 +215,7 @@ func (m *CheckManager) DeleteCheck(id uint64) (err error) {
 	}
 
 	m.removeCheck <- id
-	return
+	return <-m.resp
 }
 
 func (m *CheckManager) RunCheck(id uint64) (err error) {
