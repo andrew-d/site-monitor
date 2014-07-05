@@ -19,13 +19,31 @@ type CheckManager struct {
 	db   *bolt.DB
 	cron *cron.Cron
 
+	// This function, if non-nil, is called whenever a site has
+	// been updated.
+	OnUpdate func(*Check)
+
 	newCheck    chan newCheckMsg
 	removeCheck chan uint64
 	resp        chan error
 	quit        chan struct{}
 }
 
-func NewCheckManager(db *bolt.DB) (ret *CheckManager) {
+func KeyFor(id interface{}) (key []byte) {
+	key = make([]byte, 8)
+
+	switch v := id.(type) {
+	case uint:
+		binary.LittleEndian.PutUint64(key, uint64(v))
+	case uint64:
+		binary.LittleEndian.PutUint64(key, v)
+	default:
+		panic("unknown id type")
+	}
+	return
+}
+
+func NewCheckManager(db *bolt.DB) (ret *CheckManager, err error) {
 	ret = &CheckManager{
 		db:   db,
 		cron: cron.New(),
@@ -36,7 +54,28 @@ func NewCheckManager(db *bolt.DB) (ret *CheckManager) {
 		quit:        make(chan struct{}),
 	}
 	go ret.cronLoop()
+
+	err = ret.setupInitialChecks()
 	return
+}
+
+func (m *CheckManager) setupInitialChecks() error {
+	checks, err := m.GetAllChecks()
+	if err != nil {
+		return err
+	}
+
+	for _, v := range checks {
+		// Trigger the update now.
+		// TODO: error handling here
+		go v.Update()
+
+		m.cron.AddFunc(v.Schedule, func() {
+			m.RunCheck(v.ID)
+		})
+	}
+
+	return nil
 }
 
 func (m *CheckManager) Close() {
@@ -44,9 +83,19 @@ func (m *CheckManager) Close() {
 }
 
 func (m *CheckManager) cronLoop() {
+	// Stop the cron runner when this function exits.  Note that we need
+	// to call a function, as opposed to just `defer m.cron.Stop()`,
+	// because the value of `m.cron` might change.
+	m.cron.Start()
+	defer func() {
+		m.cron.Stop()
+	}()
+
 	for {
 		select {
 		case msg := <-m.newCheck:
+			// Note: we can't update the DB here, since the calling routine,
+			// below, holds a writable transaction below.
 			m.cron.AddFunc(msg.schedule, func() {
 				m.RunCheck(msg.id)
 			})
@@ -79,15 +128,13 @@ func (m *CheckManager) cronLoop() {
 
 			m.resp <- nil
 
-		case _, ok := <-m.quit:
-			if !ok {
-				return
-			}
+		case <-m.quit:
+			return
 		}
 	}
 }
 
-func (m *CheckManager) getCheckInternal(tx *bolt.Tx, id uint64, output *Check) (err error) {
+func (m *CheckManager) getCheckInternal(tx *bolt.Tx, id uint64, output *Check) error {
 	data := tx.Bucket(UrlsBucket).Get(KeyFor(id))
 	if data == nil {
 		return fmt.Errorf("no such check: %d", id)
@@ -99,6 +146,7 @@ func (m *CheckManager) getCheckInternal(tx *bolt.Tx, id uint64, output *Check) (
 		}).Error("error unmarshaling json")
 		return err
 	}
+	output.ID = id
 
 	return nil
 }
@@ -144,7 +192,7 @@ func (m *CheckManager) GetAllChecks() (output []*Check, err error) {
 	return
 }
 
-func (m *CheckManager) AddCheck(c *Check) (err error) {
+func (m *CheckManager) AddCheck(c *Check, update bool) (err error) {
 	if len(c.URL) == 0 {
 		return fmt.Errorf("no URL given")
 	}
@@ -170,16 +218,23 @@ func (m *CheckManager) AddCheck(c *Check) (err error) {
 		return
 	}
 
-	// Now, we need to add a new Cron task here
+	// Now, we need to add a new Cron task.
 	m.newCheck <- newCheckMsg{c.ID, c.Schedule}
-	return <-m.resp
+	<-m.resp // always nil
+
+	// Update if we're asked to.  Ignoring errors, since they will be
+	// written to the error log.
+	if update {
+		m.runInternal(c)
+	}
+	return nil
 }
 
-func (m *CheckManager) ModifyCheck(id uint64, fields map[string]interface{}) (changed bool, err error) {
+func (m *CheckManager) ModifyCheck(id uint64, fields map[string]interface{}) (ret *Check, changed bool, err error) {
 	changed = false
 
+	check := &Check{}
 	err = m.db.Update(func(tx *bolt.Tx) error {
-		check := &Check{}
 		if err := m.getCheckInternal(tx, id, check); err != nil {
 			return err
 		}
@@ -201,8 +256,17 @@ func (m *CheckManager) ModifyCheck(id uint64, fields map[string]interface{}) (ch
 			changed = true
 		}
 
+		// Don't bother with the save if we didn't change anything
+		if !changed {
+			return nil
+		}
+
 		return m.saveCheckInternal(tx, id, check)
 	})
+
+	if err != nil {
+		ret = check
+	}
 	return
 }
 
@@ -218,30 +282,47 @@ func (m *CheckManager) DeleteCheck(id uint64) (err error) {
 	return <-m.resp
 }
 
-func (m *CheckManager) RunCheck(id uint64) (err error) {
-	check := &Check{}
-	err = m.db.View(func(tx *bolt.Tx) error {
-		return m.getCheckInternal(tx, id, check)
-	})
+func (m *CheckManager) runInternal(check *Check) error {
+	// Do the update.  This modifies the returned check in place.
+	err := check.Update()
 	if err != nil {
-		return
+		return err
 	}
-
-	// Do the update.
-	check.Update(m.db, nil)
-
-	// TODO: determine if it updated or not
-	// TODO: modify Update() to just mutate self
 
 	err = m.db.Update(func(tx *bolt.Tx) error {
 		// We want to know if the check was just deleted or not
 		tmp := &Check{}
-		if err := m.getCheckInternal(tx, id, tmp); err != nil {
-			return fmt.Errorf("check was deleted mid-update: %d", id)
+		if err := m.getCheckInternal(tx, check.ID, tmp); err != nil {
+			return fmt.Errorf("check was deleted mid-update: %d", check.ID)
 		}
 
 		// Save the real check back now
-		return m.saveCheckInternal(tx, id, check)
+		return m.saveCheckInternal(tx, check.ID, check)
 	})
-	return
+	if err != nil {
+		return err
+	}
+
+	// Callback that this check was updated.
+	if m.OnUpdate != nil {
+		m.OnUpdate(check)
+	}
+
+	return nil
+}
+
+func (m *CheckManager) RunCheck(id uint64) (*Check, error) {
+	check := &Check{}
+	err := m.db.View(func(tx *bolt.Tx) error {
+		return m.getCheckInternal(tx, id, check)
+	})
+	if err != nil {
+		return nil, err
+	}
+
+	err = m.runInternal(check)
+	if err != nil {
+		return nil, err
+	}
+	return check, nil
 }

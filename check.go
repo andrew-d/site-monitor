@@ -2,17 +2,13 @@ package main
 
 import (
 	"crypto/sha256"
-	"encoding/binary"
 	"encoding/hex"
-	"encoding/json"
-	"fmt"
 	"io"
 	"net/http"
 	"time"
 
 	"github.com/PuerkitoBio/goquery"
 	"github.com/Sirupsen/logrus"
-	"github.com/boltdb/bolt"
 )
 
 // Helper struct for serialization.
@@ -26,63 +22,7 @@ type Check struct {
 	SeenChange  bool      `json:"seen"`
 }
 
-func KeyFor(id interface{}) (key []byte) {
-	key = make([]byte, 8)
-
-	switch v := id.(type) {
-	case int:
-		binary.LittleEndian.PutUint64(key, uint64(v))
-	case uint:
-		binary.LittleEndian.PutUint64(key, uint64(v))
-	case uint64:
-		binary.LittleEndian.PutUint64(key, v)
-	default:
-		panic("unknown id type")
-	}
-	return
-}
-
-func GetAllChecks(db *bolt.DB, output *[]*Check) error {
-	return db.View(func(tx *bolt.Tx) error {
-		b := tx.Bucket(UrlsBucket)
-		b.ForEach(func(k, v []byte) error {
-			check := &Check{}
-			if err := json.Unmarshal(v, check); err != nil {
-				log.WithFields(logrus.Fields{
-					"err": err,
-				}).Error("error unmarshaling json")
-				return nil
-			}
-
-			check.ID = binary.LittleEndian.Uint64(k)
-
-			*output = append(*output, check)
-			return nil
-		})
-		return nil
-	})
-}
-
-func GetOneCheck(db *bolt.DB, id uint64, output *Check) error {
-	return db.View(func(tx *bolt.Tx) error {
-		data := tx.Bucket(UrlsBucket).Get(KeyFor(id))
-		if data == nil {
-			return fmt.Errorf("no such check: %d", id)
-		}
-
-		if err := json.Unmarshal(data, output); err != nil {
-			log.WithFields(logrus.Fields{
-				"err": err,
-			}).Error("error unmarshaling json")
-			return err
-		}
-
-		output.ID = id
-		return nil
-	})
-}
-
-func (c *Check) Update(db *bolt.DB, updates chan interface{}) {
+var updateCheckFunc = func(c *Check) error {
 	log.WithFields(logrus.Fields{
 		"id":  c.ID,
 		"url": c.URL,
@@ -95,7 +35,7 @@ func (c *Check) Update(db *bolt.DB, updates chan interface{}) {
 			"err": err.Error(),
 			"url": c.URL,
 		}).Error("error fetching check")
-		return
+		return err
 	}
 
 	doc, err := goquery.NewDocumentFromResponse(resp)
@@ -104,7 +44,7 @@ func (c *Check) Update(db *bolt.DB, updates chan interface{}) {
 			"id":  c.ID,
 			"err": err,
 		}).Error("error parsing check")
-		return
+		return err
 	}
 
 	// Get all nodes matching the given selector
@@ -114,7 +54,7 @@ func (c *Check) Update(db *bolt.DB, updates chan interface{}) {
 			"id":       c.ID,
 			"selector": c.Selector,
 		}).Error("error in check: no nodes in selection")
-		return
+		return err
 	}
 
 	// Hash the content
@@ -134,24 +74,9 @@ func (c *Check) Update(db *bolt.DB, updates chan interface{}) {
 	}
 
 	c.LastChecked = time.Now()
+	return nil
+}
 
-	// Need to update the database now, since we've changed (at least the last
-	// checked time).
-	err = db.Update(func(tx *bolt.Tx) error {
-		data, err := json.Marshal(c)
-		if err != nil {
-			return err
-		}
-
-		if err = tx.Bucket(UrlsBucket).Put(KeyFor(c.ID), data); err != nil {
-			return err
-		}
-		return nil
-	})
-
-	// Broadcast this change
-	updates <- map[string]interface{}{
-		"type": "updated_check",
-		"data": c,
-	}
+func (c *Check) Update() error {
+	return updateCheckFunc(c)
 }

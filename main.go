@@ -9,7 +9,6 @@ import (
 	"github.com/boltdb/bolt"
 	"github.com/gocraft/web"
 	"github.com/joeshaw/envdecode"
-	"github.com/robfig/cron"
 	"github.com/stretchr/graceful"
 )
 
@@ -42,51 +41,13 @@ type ApiContext struct {
 	*GlobalContext
 
 	db      *bolt.DB
-	cron    *cron.Cron
+	manager *CheckManager
 	updates chan interface{}
 }
 
 func (ctx *ApiContext) ContentTypeMiddleware(w web.ResponseWriter, r *web.Request, next web.NextMiddlewareFunc) {
 	w.Header().Set("Content-Type", "application/json")
 	next(w, r)
-}
-
-func TryUpdate(db *bolt.DB, id uint64, updates chan interface{}) {
-	// The task may have been deleted from the DB, so we try to fetch it first
-	check := &Check{}
-	found := false
-
-	err := db.View(func(tx *bolt.Tx) error {
-		data := tx.Bucket(UrlsBucket).Get(KeyFor(id))
-		if data == nil {
-			return nil
-		}
-
-		if err := json.Unmarshal(data, check); err != nil {
-			log.WithFields(logrus.Fields{
-				"err": err,
-			}).Error("error unmarshaling json")
-			return err
-		}
-
-		found = true
-		return nil
-	})
-
-	if err != nil {
-		// TODO: log something
-		return
-	}
-
-	if !found {
-		log.WithFields(logrus.Fields{
-			"id": id,
-		}).Info("skipping update for deleted check")
-		return
-	}
-
-	// Got a check.  Trigger an update.
-	check.Update(db, updates)
 }
 
 type ErrorsHook struct {
@@ -130,7 +91,7 @@ func (hook *ErrorsHook) Fire(entry *logrus.Entry) error {
 		}
 		logEntry.ID = uint64(seq)
 
-		if err = b.Put(KeyFor(seq), data); err != nil {
+		if err = b.Put(KeyFor(logEntry.ID), data); err != nil {
 			return err
 		}
 		return nil
@@ -183,9 +144,6 @@ func main() {
 	}
 	defer db.Close()
 
-	c := cron.New()
-	updatesChan := make(chan interface{})
-
 	// Create collections.
 	buckets := [][]byte{UrlsBucket, LogsBucket}
 	db.Update(func(tx *bolt.Tx) error {
@@ -198,34 +156,34 @@ func main() {
 		return nil
 	})
 
-	// Add a hook to our logger that will catch errors (and above) and will add
-	// them to our error log.
+	// This channel recieves the updates, which are eventually broadcasted
+	// out to all connected websockets.
+	updatesChan := make(chan interface{})
+
+	// Create check manager.
+	manager, err := NewCheckManager(db)
+	if err != nil {
+		log.WithFields(logrus.Fields{
+			"err": err,
+		}).Fatal("error creating check manager")
+		return
+	}
+	defer manager.Close()
+
+	// Hook up the updates from the manager to the updates channel.
+	manager.OnUpdate = func(c *Check) {
+		updatesChan <- map[string]interface{}{
+			"type": "updated_check",
+			"data": c,
+		}
+	}
+
+	// Add a hook to our logger that will catch messages of severity Error
+	// (and above) and will add them to our error log.
 	log.Hooks.Add(&ErrorsHook{
 		DB:      db,
 		Updates: updatesChan,
 	})
-
-	// Initialize for each of the existing URLs
-	var items []*Check
-	if err = GetAllChecks(db, &items); err != nil {
-		log.WithFields(logrus.Fields{
-			"err": err,
-		}).Fatal("error loading checks")
-	}
-
-	for _, v := range items {
-		// Trigger the update now (nil channel since we won't have any listening
-		// clients at this point).
-		go v.Update(db, nil)
-
-		c.AddFunc(v.Schedule, func() {
-			TryUpdate(db, v.ID, updatesChan)
-		})
-	}
-
-	// Start our cron scheduler.
-	c.Start()
-	defer c.Stop()
 
 	router := web.New(GlobalContext{})
 	router.
@@ -256,7 +214,7 @@ func main() {
 		Middleware((*ApiContext).ContentTypeMiddleware).
 		Middleware(func(ctx *ApiContext, w web.ResponseWriter, r *web.Request, next web.NextMiddlewareFunc) {
 		ctx.db = db
-		ctx.cron = c
+		ctx.manager = manager
 		ctx.updates = updatesChan
 		next(w, r)
 	})
