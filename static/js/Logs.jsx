@@ -2,7 +2,7 @@
 
 'use strict';
 
-var React = require('react'),
+var React   = require('react'),
     Fluxxor = require('fluxxor'),
     _       = require('lodash');
 
@@ -19,7 +19,17 @@ var Logs = React.createClass({
     },
 
     render: function() {
-        var sortedLogs = _.sortBy(this.state.logs, 'time');
+        var sortedLogs = this.state.logs.slice(0);
+        sortedLogs.sort(function(a, b) {
+            if( a.time === b.time ) {
+                return 0;
+            } else if( a.time < b.time ) {
+                return 1;
+            } else {
+                return -1;
+            }
+        });
+
         return (
             <div>
                 <h2>Logs</h2>
