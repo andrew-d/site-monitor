@@ -14,6 +14,17 @@ var LogRow = require('./LogRow.jsx');
 var Logs = React.createClass({
     mixins: [FluxMixin, StoreWatchMixin("LogStore")],
 
+    componentDidMount: function() {
+        // Re-render every minute to update the times in the log rows.
+        this.timeoutId = window.setTimeout(function() {
+            this.forceUpdate();
+        }.bind(this), 60*1000);
+    },
+
+    componentWillUnmount: function() {
+        window.clearTimeout(this.timeoutId);
+    },
+
     getStateFromFlux: function() {
         return this.getFlux().store("LogStore").getState();
     },

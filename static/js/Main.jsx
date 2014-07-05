@@ -14,6 +14,17 @@ var ItemRow = require('./ItemRow.jsx'),
 var Main = React.createClass({
     mixins: [FluxMixin, StoreWatchMixin("ItemStore")],
 
+    componentDidMount: function() {
+        // Re-render every minute to update the times in the item rows.
+        this.timeoutId = window.setTimeout(function() {
+            this.forceUpdate();
+        }.bind(this), 60*1000);
+    },
+
+    componentWillUnmount: function() {
+        window.clearTimeout(this.timeoutId);
+    },
+
     getStateFromFlux: function() {
         return this.getFlux().store("ItemStore").getState();
     },
