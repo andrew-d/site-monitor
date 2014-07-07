@@ -192,20 +192,7 @@ func main() {
 		Middleware((*GlobalContext).RecoverMiddleware)
 
 	router.Get("/", ServeAsset("index.html", "text/html"))
-
-	// TODO: serve map file in debug mode
-	assets := []struct {
-		Path string
-		Mime string
-	}{
-		{"index.html", "text/html"},
-		{"js/bundle.js", "text/javascript"},
-		{"js/lib/bootstrap.min.js", "text/javascript"},
-		{"css/bootstrap.min.css", "text/css"},
-		{"fonts/glyphicons-halflings-regular.woff", "application/font-woff"},
-		{"fonts/glyphicons-halflings-regular.ttf", "application/x-font-ttf"},
-	}
-	for _, asset := range assets {
+	for _, asset := range AssetDescriptors() {
 		router.Get("/"+asset.Path, ServeAsset(asset.Path, asset.Mime))
 	}
 

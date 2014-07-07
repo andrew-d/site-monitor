@@ -13,10 +13,12 @@ TYPE ?= debug
 # We ignore the ".map" file in release mode, to keep the size of our binary
 # to a minimum.  In debug mode, we also always load the assets from disk.
 ifeq ($(TYPE),release)
+export ASSET_FLAGS   :=
 export BINDATA_FLAGS := "-ignore=.*\\.map"
 export WEBPACK_FLAGS := --optimize-minimize --optimize-dedupe
 export NODE_ENV      := NODE_ENV=production
 else
+export ASSET_FLAGS   := --debug
 export BINDATA_FLAGS := -debug
 export WEBPACK_FLAGS :=
 export NODE_ENV      :=
@@ -28,7 +30,7 @@ STATIC_FILES := static/js/lib/bootstrap.min.js \
                 static/fonts/glyphicons-halflings-regular.woff \
                 static/fonts/glyphicons-halflings-regular.ttf
 BUILD_FILES  := $(patsubst static/%,build/%,$(STATIC_FILES))
-RESOURCES    := build/index.html build/js/bundle.js $(BUILD_FILES)
+RESOURCES    := build/index.html build/js/bundle.js build/js/bundle.js.map $(BUILD_FILES)
 
 WEBPACK_BIN  := ./node_modules/webpack/bin/webpack.js
 
@@ -45,9 +47,16 @@ NOCOLOR := \e[0m
 
 all: dependencies site-monitor
 
-site-monitor: resources.go $(wildcard *.go)
+site-monitor: asset_descriptors.go resources.go $(wildcard *.go)
 	@printf "  $(GREEN)GO$(NOCOLOR)       $@\n"
 	$(CMD_PREFIX)godep go build -o $@ .
+
+asset_descriptors.go: $(RESOURCES)
+	@printf "  $(GREEN)ASSETS$(NOCOLOR)   $@\n"
+	$(CMD_PREFIX)python ./gen_descriptors.py \
+		$(ASSET_FLAGS) \
+		--prefix "build/" \
+		$(RESOURCES) > $@
 
 resources.go: $(RESOURCES)
 	@printf "  $(GREEN)BINDATA$(NOCOLOR)  $@\n"
@@ -97,7 +106,7 @@ dependencies:
 ######################################################################
 
 .PHONY: clean
-CLEAN_FILES := build/index.html build/js build/css site-monitor
+CLEAN_FILES := build/index.html build/js build/css site-monitor resources.go asset_descriptors.go
 clean:
 	@printf "  $(YELLOW)RM$(NOCOLOR)       $(CLEAN_FILES)\n"
 	$(CMD_PREFIX)$(RM) -r $(CLEAN_FILES)
