@@ -6,10 +6,10 @@ import (
 	"time"
 
 	"github.com/Sirupsen/logrus"
+	"github.com/andrew-d/graceful"
 	"github.com/boltdb/bolt"
 	"github.com/gocraft/web"
 	"github.com/joeshaw/envdecode"
-	"github.com/stretchr/graceful"
 )
 
 var (
@@ -213,6 +213,6 @@ func main() {
 
 	addr := fmt.Sprintf("%s:%s", config.Hostname, config.Port)
 	log.Printf("Starting server on %s", addr)
-	graceful.Run(addr, 10*time.Second, router)
+	graceful.Run(addr, router)
 	log.Info("Finished")
 }

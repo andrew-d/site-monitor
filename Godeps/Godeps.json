@@ -23,6 +23,10 @@
 			"Rev": "97978e5e5483a3f926c2bb6e19f9e2ff344e81f0"
 		},
 		{
+			"ImportPath": "github.com/andrew-d/graceful",
+			"Rev": "13a11019d8a2656f5a611cf19990d1ef2e5b255f"
+		},
+		{
 			"ImportPath": "github.com/boltdb/bolt",
 			"Comment": "data/v1-156-g0329b03",
 			"Rev": "0329b03f58799ab8e51e7567f836c80c24258a16"
@@ -45,11 +49,11 @@
 			"Rev": "b024fc5ea0e34bc3f83d9941c8d60b0622bfaca4"
 		},
 		{
-			"ImportPath": "github.com/stretchr/graceful",
-			"Rev": "68d4bcc41bfe16abf9cde7435441b21a35750d55"
+			"ImportPath": "github.com/stretchr/testify/assert",
+			"Rev": "410219ae829b24af99a4d48a79858f23d0be42ee"
 		},
 		{
-			"ImportPath": "github.com/stretchr/testify/assert",
+			"ImportPath": "github.com/stretchr/testify/suite",
 			"Rev": "410219ae829b24af99a4d48a79858f23d0be42ee"
 		}
 	]
