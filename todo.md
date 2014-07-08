@@ -1,10 +1,14 @@
 # ToDo List
 
-[ ] Consolidate the DB modification into a more central location, rather than
+[x] Consolidate the DB modification into a more central location, rather than
     having it spread out across the entire codebase
-[ ] Remove the race condition between loading a check to update and it being
+[x] Remove the race condition between loading a check to update and it being
     deleted (perhaps: keep the db.Update open during the update itself?)
-    [ ] Ensure that an update that takes a long time doesn't block reads
+    [x] Ensure that an update that takes a long time doesn't block reads
+[ ] Fix the whitespace wrapping in the table
+		[ ] Prevent all cells except URL from wrapping
+		[ ] Truncate the URL text if it's longer than X characters
+		[ ] Link the URL to the original
 
 
 # Maybe Later

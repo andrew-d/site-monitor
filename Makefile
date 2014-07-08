@@ -26,6 +26,7 @@ endif
 
 JS_FILES     := $(shell find static/js/ -name '*.js' -or -name '*.jsx')
 STATIC_FILES := static/js/lib/bootstrap.min.js \
+                static/css/site-monitor.css \
                 static/css/bootstrap.min.css \
                 static/fonts/glyphicons-halflings-regular.woff \
                 static/fonts/glyphicons-halflings-regular.ttf
